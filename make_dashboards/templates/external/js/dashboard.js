@@ -57,7 +57,7 @@ $(function () {
         var all_projs = Object.keys(ydata).map(function(a){return ydata[a]}).reduce(function(a,b){return a+b}) +
              Object.keys(ydata_seq).map(function(a){return ydata_seq[a]}).reduce(function(a,b){return a+b});
         var subtitle = all_projs+' since '+start_date+', '+open_projs+' currently open';
-        make_bar_plot('#num_projects_plot', '# Projects ', undefined, subtitle, true, {'Library prep': ydata, 'Sequencing only': ydata_seq, 'Ongoing': open});
+        make_bar_chart_js('#num_projects_plot', '# Projects', subtitle, {'Library prep': ydata, 'Sequencing only': ydata_seq, 'Ongoing': open});
 
         // Samples plot
         var ydata = collect_n_months(data['num_samples'], num_months, start_date);
@@ -65,7 +65,7 @@ $(function () {
         var all_samples = Object.keys(ydata).map(function(a){return ydata[a]}).reduce(function(a,b){return a+b}) +
              Object.keys(ydata_seq).map(function(a){return ydata_seq[a]}).reduce(function(a,b){return a+b});
         var subtitle = all_samples+' since '+start_date;
-        make_bar_plot('#num_samples_plot', '# Samples ', undefined, subtitle, true, {'Library prep': ydata, 'Sequencing only': ydata_seq});
+        make_bar_chart_js('#num_samples_plot', '# Samples', subtitle, {'Library prep': ydata, 'Sequencing only': ydata_seq});
 
         // Species plot
         //make_species_plot('#species_plot');
@@ -283,6 +283,89 @@ function make_delivery_times_plot(){
 
                     ctx.fillText(text, textX, textY);
                     ctx.save();
+                }
+            }
+        }
+    });
+}
+  
+// Chart.js stacked bar chart for # Projects and # Samples
+function make_bar_chart_js(target, title, subtitle, seriesData){
+    // Determine all categories (union of keys across series)
+    var categoriesSet = {};
+    Object.keys(seriesData).forEach(function(series){
+        Object.keys(seriesData[series]).forEach(function(cat){
+            categoriesSet[cat] = true;
+        });
+    });
+    var categories = Object.keys(categoriesSet).sort();
+
+    // Colors for up to three series
+    var palette = ['#315a7b', '#377eb8', '#4daf4a'];
+
+    var datasets = Object.keys(seriesData).map(function(series, idx){
+        var data = categories.map(function(cat){
+            return seriesData[series][cat] !== undefined ? seriesData[series][cat] : 0;
+        });
+        return {
+            label: series,
+            data: data,
+            backgroundColor: palette[idx % palette.length]
+        };
+    });
+
+    var $container = $(target);
+    $container.empty(); // clear previous content
+    var $canvas = $('<canvas></canvas>');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+    // Ensure the canvas has height for vertical bars visibility
+    $canvas.attr('height', plot_height);
+    $container.css('height', plot_height + 'px');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: categories,
+            datasets: datasets
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: title,
+                    font: { size: 18 }
+                },
+                subtitle: {
+                    display: true,
+                    text: subtitle
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context){
+                            var label = context.dataset.label || '';
+                            var value = context.parsed.y;
+                            return label + ': ' + value;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    grid: {
+                        display: false
+                    }
                 }
             }
         }
