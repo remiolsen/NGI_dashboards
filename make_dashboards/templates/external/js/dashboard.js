@@ -203,65 +203,89 @@ function make_bar_plot(target, title, axisTitle, subtitle ,enableLegend, ydata){
 
 
 function make_delivery_times_plot(){
+    // Gather delivery time data
     var ydata = collect_n_months(data['delivery_times'], num_months, start_date);
-    var ykeys = Object.keys(ydata).sort(function(a,b){ return a.match(/\d+/)-b.match(/\d+/) });
-    var pdata = Array();
-    for(i=0; i<ykeys.length; i++){ pdata.push([ykeys[i], ydata[ykeys[i]]]); }
-    var d = new Date();
+    var labels = Object.keys(ydata).sort(function(a,b){
+        return a.match(/\d+/) - b.match(/\d+/);
+    });
+    var values = labels.map(function(l){ return ydata[l]; });
 
-    $('#delivery_times_plot').highcharts({
-        chart: {
-            plotBackgroundColor: null,
-            plotBorderWidth: 0,
-            plotShadow: false,
-            height: plot_height * 0.65,
+    // Compute median value (in weeks)
+    function computeMedian(arr){
+        var sorted = arr.slice().sort(function(a,b){return a-b;});
+        var half = Math.floor(sorted.length/2);
+        if (sorted.length % 2)
+            return sorted[half];
+        return (sorted[half-1] + sorted[half]) / 2.0;
+    }
+    var median = computeMedian(values);
+
+    // Prepare container
+    var $container = $('#delivery_times_plot');
+    $container.empty(); // remove any previous content
+
+    // Create canvas element for Chart.js
+    var $canvas = $('<canvas></canvas>');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+
+    // Chart.js doughnut configuration
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: [
+                    '#377eb8','#4daf4a','#984ea3','#ff7f00',
+                    '#a65628','#f781bf','#999999','#e41a1c'
+                ],
+                borderWidth: 1
+            }]
         },
-        title: {
-            text: 'Delivery Times',
-            style: { 'font-size': '24px' }
-        },
-        subtitle: {
-            text: 'Measured from sample QC pass to data delivery dates <br/>for projects started since '+start_date,
-        },
-        credits: { enabled: false },
-        tooltip: {
-            headerFormat: '',
-            pointFormat: '<span style="color:{point.color}; font-weight:bold;">{point.name}eeks</span>: {point.y} projects'
-        },
-        plotOptions: {
-            pie: {
-                // dataLabels: { enabled: false },
-                dataLabels: {
-                    enabled: true,
-                    formatter: function() {
-                        return Math.round(this.percentage*100)/100 + ' %';
-                    },
-                    distance: -40,
-                    style: {
-                        fontWeight: 'bold',
-                        color: 'white',
-                        textShadow: '0px 1px 2px black',
-                        'font-size': '18px'
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            circumference: 180,
+            rotation: -90,
+            title: {
+                display: true,
+                text: 'Delivery Times',
+                fontSize: 24
+            },
+            legend: {
+                display: true,
+                position: 'right'
+            },
+            tooltips: {
+                callbacks: {
+                    label: function(tooltipItem, data){
+                        var label = data.labels[tooltipItem.index] || '';
+                        var val = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                        return label + ': ' + val + ' projects';
                     }
-                },
-                showInLegend: true,
-                startAngle: -90,
-                endAngle: 90,
-                size: '210%',
-                center: ['50%', '100%']
+                }
+            },
+            plugins: {
+                // Plugin to display median in the centre of the doughnut
+                beforeDraw: function(chart){
+                    var width = chart.chart.width,
+                        height = chart.chart.height,
+                        ctx = chart.chart.ctx;
+                    ctx.restore();
+                    var fontSize = (height / 114).toFixed(2);
+                    ctx.font = fontSize + "em sans-serif";
+                    ctx.textBaseline = "middle";
+
+                    var text = "Median: " + median,
+                        textX = Math.round((width - ctx.measureText(text).width) / 2),
+                        textY = height / 2;
+
+                    ctx.fillText(text, textX, textY);
+                    ctx.save();
+                }
             }
-        },
-        legend: {
-            enabled: true,
-            floating: true,
-            y: 20
-        },
-        series: [{
-            type: 'pie',
-            name: 'Delivery Times',
-            innerSize: '50%',
-            data: pdata
-        }]
+        }
     });
 }
 
