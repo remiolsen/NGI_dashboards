@@ -248,41 +248,24 @@ function make_delivery_times_plot(){
             maintainAspectRatio: false,
             circumference: 180,
             rotation: -90,
-            title: {
-                display: true,
-                text: 'Delivery Times',
-                fontSize: 24
-            },
-            legend: {
-                display: true,
-                position: 'right'
-            },
-            tooltips: {
-                callbacks: {
-                    label: function(tooltipItem, data){
-                        var label = data.labels[tooltipItem.index] || '';
-                        var val = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                        return label + ': ' + val + ' projects';
-                    }
-                }
-            },
             plugins: {
-                // Plugin to display median in the centre of the doughnut
-                beforeDraw: function(chart){
-                    var width = chart.chart.width,
-                        height = chart.chart.height,
-                        ctx = chart.chart.ctx;
-                    ctx.restore();
-                    var fontSize = (height / 114).toFixed(2);
-                    ctx.font = fontSize + "em sans-serif";
-                    ctx.textBaseline = "middle";
-
-                    var text = "Median: " + median,
-                        textX = Math.round((width - ctx.measureText(text).width) / 2),
-                        textY = height / 2;
-
-                    ctx.fillText(text, textX, textY);
-                    ctx.save();
+                title: {
+                    display: true,
+                    text: 'Delivery Times',
+                    font: { size: 18 }
+                },
+                legend: {
+                    display: true,
+                    position: 'right'
+                },
+                tooltips: {
+                    callbacks: {
+                        label: function(tooltipItem, data){
+                            var label = data.labels[tooltipItem.index] || '';
+                            var val = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                            return label + ': ' + val + ' projects';
+                        }
+                    }
                 }
             }
         }
@@ -402,7 +385,7 @@ function make_finished_lib_median_plot(){
     // Chart container setup
     var container = document.getElementById('finished_lib_median_tat');
     container.innerHTML = '';
-    container.style.height = '140px';
+    container.style.height = '180px';
     var canvas = document.createElement('canvas');
     canvas.height = 180;
     container.appendChild(canvas);
@@ -442,25 +425,28 @@ function make_finished_lib_median_plot(){
             maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                title: { display: true, text: 'Finished Lib TaT (Raw Data Distribution)' },
+                title: { display: true, text: 'Finished Lib TaT' },
                 subtitle: {
                     display: true,
                     text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '/ 5 months from current date): ' + median.toFixed(1) + ' days'
                 },
-            },
-            tooltip: {
-                mode: 'index',
-                intersect: false,
-                callbacks: {
-                    label: function(context){
-                        return 'Frequency: ' + context.parsed.y + ' observations at ' + context.label + ' days';
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context){
+                            return 'Frequency: ' + context.parsed.y + ' observations at ' + context.label + ' days';
+                        }
                     }
                 }
             },
             scales: {
                 x: {
                     title: { display: true, text: 'Days' },
-                    beginAtZero: true
+                    beginAtZero: true,
+                    grid: {
+                        display: false
+                    }
                 },
                 y: {
                     display: true,
@@ -553,7 +539,7 @@ function make_throughput_plot(){
     // Subtitle text
     var bp_per_day = total_count / (num_weeks * 7);
     var minutes_per_genome = 3236336281 / (bp_per_day / (24*60));
-    var subtitle_text = 'Average for past '+num_weeks+' weeks: '+parseInt(bp_per_day/1000000000)+' Gbp per day <br>(1 Human genome equivalent every '+minutes_per_genome.toFixed(2)+' minutes)';
+    var subtitle_text = 'Average for past '+num_weeks+' weeks: '+parseInt(bp_per_day/1000000000)+' Gbp per day (1 Human genome equivalent every '+minutes_per_genome.toFixed(2)+' minutes)';
 
     // Chart.js replacement
     var labels = weeks;
@@ -620,10 +606,13 @@ function make_throughput_plot(){
                         text: 'Sequencing Throughput',
                         font: { size: 18 }
                     },
+                    subtitle: {
+                        display: true,
+                        text: subtitle_text,
+                    },
                     legend: { display: true },
                     tooltips: { mode: 'index', intersect: false }
                 }
-                // Add subtitle with average and genome equivalent
             }
         });
 }
