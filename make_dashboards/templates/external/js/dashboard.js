@@ -7,15 +7,6 @@ $(function () {
 
     try {
 
-        Highcharts.setOptions({
-            colors: ['#377eb8','#4daf4a','#984ea3','#ff7f00','#a65628','#f781bf','#999999','#e41a1c'],
-            chart: {
-                style: {
-                    fontFamily:'"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif'
-                }
-            },
-            plotOptions: { series: { animation: false } }
-        });
 
         // Reload the page every 30 minutes
         var reloadDelay = 1000*60*30;
@@ -67,8 +58,6 @@ $(function () {
         var subtitle = all_samples+' since '+start_date;
         make_bar_chart_js('#num_samples_plot', '# Samples', subtitle, {'Library prep': ydata, 'Sequencing only': ydata_seq});
 
-        // Species plot
-        //make_species_plot('#species_plot');
 
         // Delivery times plot
         make_delivery_times_plot();
@@ -114,92 +103,6 @@ function collect_n_months(data, n, start_key) {
     return ndata;
 }
 
-// Make a bar plot
-function make_bar_plot(target, title, axisTitle, subtitle ,enableLegend, ydata){
-    try {
-        if(target === undefined){ throw 'Target missing'; }
-        if(ydata === undefined){ throw 'Data missing'; }
-        if(title === undefined){ title = null; }
-        if(axisTitle === undefined){ axisTitle = null; }
-
-        var iseries = [];
-        var total_count = 0;
-        var set_cats = {};
-
-        // Do it once to get the catagories
-        for (var i=0; i<Object.keys(ydata).length; i++) {
-            var idata = ydata[Object.keys(ydata)[i]];
-            var cats = Object.keys(idata).sort(function(a,b){return idata[a]-idata[b]}).reverse();
-            for(var j=0; j<cats.length; j++){
-              (set_cats[cats[j]] === undefined) ? set_cats[cats[j]]=idata[cats[j]] : set_cats[cats[j]]=set_cats[cats[j]]+idata[cats[j]];
-            }
-        }
-        // Do it twice to get the data or w.e
-        for (var i=0; i<Object.keys(ydata).length; i++) {
-            var idata = ydata[Object.keys(ydata)[i]];
-            var cats = Object.keys(set_cats).sort(function(a,b){return set_cats[a]-set_cats[b]}).reverse();
-            var sorted_idata = [];
-            for(var j=0; j<cats.length; j++){
-                if (idata[cats[j]] === undefined) {idata[cats[j]] = 0;}
-                sorted_idata.push(idata[cats[j]]);
-                total_count += idata[cats[j]];
-            }
-            iseries.push({"name": Object.keys(ydata)[i], "data": sorted_idata});
-        }
-        var nice_cats = Object.keys(set_cats).sort(function(a,b){return set_cats[a]-set_cats[b]}).reverse();
-        subtitle = subtitle;
-        $(target).highcharts({
-            colors: ['#315a7b', '#377eb8', '#4daf4a'],
-            chart: {
-                type: 'bar',
-                height: plot_height,
-                plotBackgroundColor: null,
-            },
-            title: {
-                text: title,
-                style: { 'font-size': '24px' }
-            },
-            subtitle: {
-                text: subtitle,
-            },
-            tooltip: {
-                shared: true,
-                headerFormat: '',
-                pointFormat: '<span style="color:{series.color}; font-weight:bold;">{series.name}</span>: {point.y}<br/>'
-            },
-            credits: { enabled: false },
-            xAxis: {
-                categories: nice_cats
-            },
-            yAxis: {
-                min: 0,
-                title: { text: axisTitle },
-                stackLabels: { enabled: true }
-            },
-            legend: {
-                reversed: true,
-                floating: true,
-                y: -30,
-                x: 150,
-                layout: 'vertical',
-                enabled: enableLegend
-            },
-            plotOptions: {
-                bar: {
-                    borderWidth: 0,
-                    groupPadding: 0.1,
-                },
-                series: {
-                    stacking: 'normal'
-                }
-            },
-            series: iseries
-        });
-    } catch(err) {
-        $(target).addClass('coming_soon').text('coming soon');
-        console.log(err);
-    }
-}
 
 
 function make_delivery_times_plot(){
