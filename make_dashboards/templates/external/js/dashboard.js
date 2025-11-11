@@ -293,12 +293,19 @@ function make_delivery_times_plot(){
 function make_bar_chart_js(target, title, subtitle, seriesData){
     // Determine all categories (union of keys across series)
     var categoriesSet = {};
+    var categoryTotals = {};
     Object.keys(seriesData).forEach(function(series){
         Object.keys(seriesData[series]).forEach(function(cat){
             categoriesSet[cat] = true;
+            if (!categoryTotals[cat]) {
+                categoryTotals[cat] = 0;
+            }
+            categoryTotals[cat] += seriesData[series][cat];
         });
     });
-    var categories = Object.keys(categoriesSet).sort();
+    var categories = Object.keys(categoriesSet).sort(function(a, b) {
+        return categoryTotals[b] - categoryTotals[a];
+    });
 
     // Colors for up to three series
     var palette = ['#315a7b', '#377eb8', '#4daf4a'];
@@ -404,78 +411,63 @@ function make_finished_lib_median_plot(){
         window.finishedLibMedianChart.destroy();
     }
 
-    // Data points: x = days, y = index
-    var scatterData = distribution.map(function(d, i){
-        return { x: d, y: i };
+    // Create histogram data for area plot
+    var histogram = {};
+    distribution.forEach(function(value) {
+        var key = Math.floor(value);
+        histogram[key] = (histogram[key] || 0) + 1;
     });
 
+    // Convert histogram to chart data
+    var labels = Object.keys(histogram).map(Number).sort(function(a,b){return a-b;});
+    var data = labels.map(function(label){return histogram[label];});
+
+    // Create a vertical line for the median
     window.finishedLibMedianChart = new Chart(ctx, {
-        type: 'scatter',
+        type: 'line',
         data: {
+            labels: labels,
             datasets: [{
-                label: 'Finished Lib TaT',
-                data: scatterData,
-                showLine: true,
-                fill: true,
+                label: 'Frequency',
+                data: data,
                 backgroundColor: 'rgba(232,100,83,0.4)',
                 borderColor: 'rgba(232,100,83,1)',
-                borderWidth: 2,
+                borderWidth: 1,
+                fill: true,
                 pointRadius: 0
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            parsing: false,
             plugins: {
-                title: { display: true, text: 'Finished Lib TaT (Distribution with Days on X)' },
+                legend: { display: false },
+                title: { display: true, text: 'Finished Lib TaT (Raw Data Distribution)' },
                 subtitle: {
                     display: true,
                     text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '/ 5 months from current date): ' + median.toFixed(1) + ' days'
                 },
-                legend: { display: false },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context){
-                            var day = context.raw && context.raw.x !== undefined ? context.raw.x : distribution[context.dataIndex];
-                            var idx = context.dataIndex + 1;
-                            return 'TaT ' + idx + ': ' + (day !== undefined ? day : 0) + ' days';
-                        }
+            },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                    label: function(context){
+                        return 'Frequency: ' + context.parsed.y + ' observations at ' + context.label + ' days';
                     }
                 }
             },
             scales: {
                 x: {
-                    type: 'linear',
                     title: { display: true, text: 'Days' },
                     beginAtZero: true
                 },
                 y: {
                     display: true,
-                    title: { display: true, text: 'Observation' },
+                    title: { display: true, text: 'Frequency' },
                     beginAtZero: true
                 }
-            },
-            // Median line as a separate plugin
-            plugins: [{
-                id: 'medianLine',
-                afterDraw: function(chart){
-                    if (!distribution || distribution.length === 0) return;
-                    var med = median;
-                    var x = chart.scales.x.getPixelForValue(med);
-                    var ctx2 = chart.ctx;
-                    ctx2.save();
-                    ctx2.strokeStyle = 'rgba(0,0,0,0.8)';
-                    ctx2.lineWidth = 2;
-                    ctx2.beginPath();
-                    ctx2.moveTo(x, chart.chartArea.top);
-                    ctx2.lineTo(x, chart.chartArea.bottom);
-                    ctx2.stroke();
-                    ctx2.restore();
-                }
-            }]
+            }
         }
     });
 }
@@ -571,7 +563,10 @@ function make_throughput_plot(){
         'rgba(77,175,122,0.6)',
         'rgba(255,127,14,0.6)',
         'rgba(166,86,40,0.6)',
-        'rgba(247,129,191,0.6)'
+        'rgba(247,129,191,0.6)',
+        'rgba(152,78,163,0.6)',
+        'rgba(153,153,153,0.6)',
+        'rgba(228,26,28,0.6)'
     ];
     var datasets = sdata.map(function(ds, idx){
         return {
@@ -580,10 +575,6 @@ function make_throughput_plot(){
             fill: true,
             backgroundColor: colorPalette[idx % colorPalette.length],
             borderColor: colorPalette[idx % colorPalette.length].replace('0.6','1'),
-            borderWidth: 1,
-            // stack for Chart.js stacking
-            // @ts potential: keep compatibility with v2 by using 'stack' property if supported
-            stack: 'Stack 0'
         };
     });
 
@@ -592,33 +583,49 @@ function make_throughput_plot(){
     var $canvas = $('<canvas></canvas>');
     $container.append($canvas);
     var ctx = $canvas[0].getContext('2d');
+    // Ensure the canvas has height for vertical bars visibility
+    $canvas.attr('height', plot_height);
+    $container.css('height', plot_height + 'px');
 
     if(window.throughputChart) {
         window.throughputChart.destroy();
     }
     window.throughputChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            // stacking
-            scales: {
-                xAxes: [{ stacked: true, ticks: { maxRotation: 0, minRotation: 0 } }],
-                yAxes: [{ stacked: true, ticks: { beginAtZero: true } }]
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
             },
-            legend: { display: true, position: 'top' },
-            tooltips: { mode: 'index', intersect: false },
-            // no subtitle option; we could modify title to include text
-            title: {
-                display: true,
-                text: 'Sequencing Throughput'
+            options: {
+                radius: 0,
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        ticks: {
+                            beginAtZero: true,
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Sequencing Throughput',
+                        font: { size: 18 }
+                    },
+                    legend: { display: true },
+                    tooltips: { mode: 'index', intersect: false }
+                }
+                // Add subtitle with average and genome equivalent
             }
-        }
-    });
+        });
 }
 
 
