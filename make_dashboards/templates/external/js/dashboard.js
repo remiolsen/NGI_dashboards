@@ -467,48 +467,74 @@ function make_finished_lib_median_plot(){
 function make_affiliations_plot(){
     var ydata = collect_n_months(data['project_user_affiliations'], num_months, start_date);
     var ykeys = Object.keys(ydata).sort(function(a,b){return ydata[a]-ydata[b]}).reverse();
-    var pdata = Array();
+    
+    // Prepare data for Chart.js
+    var labels = [];
+    var values = [];
     for(i=0; i<ykeys.length; i++){
-        var thiskey = ykeys[i];
-        pdata.push([thiskey, ydata[ykeys[i]]]);
+        labels.push(ykeys[i]);
+        values.push(ydata[ykeys[i]]);
     }
 
-    $('#affiliations_plot').highcharts({
-        chart: {
-            plotBackgroundColor: null,
-            height: plot_height,
-            type:'pie'
+    // Chart.js implementation
+    var $container = $('#affiliations_plot');
+    $container.empty(); // remove any previous content
+    
+    // Create canvas element for Chart.js
+    var $canvas = $('<canvas></canvas>');
+    // Ensure the canvas has uses height for visibility
+    $canvas.attr('height', plot_height);
+    $container.css('height', plot_height + 'px');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+    
+    // Chart.js pie configuration
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: [
+                    '#377eb8','#4daf4a','#984ea3','#ff7f00',
+                    '#a65628','#f781bf','#999999','#e41a1c'
+                ],
+                borderWidth: 1
+            }]
         },
-        title: {
-            text: 'Project Affiliations',
-            style: { 'font-size': '24px' }
-        },
-        subtitle: {
-            text: 'Projects started since '+start_date,
-        },
-        credits: { enabled: false },
-        tooltip: {
-            headerFormat: '',
-            pointFormat: '<span style="color:{point.color}; font-weight:bold;">{point.name}</span>: {point.y} projects'
-        },
-        plotOptions: {
-            pie: {
-                dataLabels: { enabled: false },
-                showInLegend: true,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Project Affiliations',
+                    font: { size: 18 }
+                },
+                subtitle: {
+                    display: true,
+                    text: 'Projects started since '+start_date
+                },
+                legend: {
+                    display: true,
+                    position: 'right',
+                    labels: {
+                        boxWidth: 10,
+                        font: { size: 10 },
+                        padding: 2
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            var label = context.label || '';
+                            var value = context.parsed;
+                            return label + ': ' + value + ' projects';
+                        }
+                    }
+                }
             }
-        },
-        legend: {
-            enabled: true,
-            layout: 'vertical',
-            align: 'right',
-            verticalAlign: 'top',
-            y: 100,
-            itemStyle: {
-                'font-size': '12px',
-                'font-weight': 'normal'
-            }
-        },
-        series: [{ data: pdata }]
+        }
     });
 }
 
