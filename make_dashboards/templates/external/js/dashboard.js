@@ -394,25 +394,26 @@ function make_finished_lib_median_plot(){
         window.finishedLibMedianChart.destroy();
     }
 
-    // Create histogram data for area plot
-    var histogram = {};
+    // Create frequency data for line chart from raw distribution
+    var frequencyData = {};
     distribution.forEach(function(value) {
         var key = Math.floor(value);
-        histogram[key] = (histogram[key] || 0) + 1;
+        frequencyData[key] = (frequencyData[key] || 0) + 1;
     });
 
-    // Convert histogram to chart data
-    var labels = Object.keys(histogram).map(Number).sort(function(a,b){return a-b;});
-    var data = labels.map(function(label){return histogram[label];});
+    // Convert frequency data to chart data points
+    var dataPoints = [];
+    Object.keys(frequencyData).map(Number).sort(function(a,b){return a-b;}).forEach(function(key) {
+        dataPoints.push({x: key, y: frequencyData[key]});
+    });
 
     // Create a vertical line for the median
     window.finishedLibMedianChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
             datasets: [{
                 label: 'Frequency',
-                data: data,
+                data: dataPoints,
                 backgroundColor: 'rgba(232,100,83,0.4)',
                 borderColor: 'rgba(232,100,83,1)',
                 borderWidth: 1,
@@ -428,20 +429,24 @@ function make_finished_lib_median_plot(){
                 title: { display: true, text: 'Finished Lib TaT' },
                 subtitle: {
                     display: true,
-                    text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '/ 5 months from current date): ' + median.toFixed(1) + ' days'
+                    text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '): ' + median.toFixed(1) + ' days'
                 },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context){
-                            return 'Frequency: ' + context.parsed.y + ' observations at ' + context.label + ' days';
+                annotation: {
+                    annotations: {
+                        medianLine: {
+                            type: 'line',
+                            xMin: median,
+                            xMax: median,
+                            borderColor: 'rgba(55,126,184,1)',
+                            borderWidth: 2,
+                            borderDash: [6, 6],
                         }
                     }
                 }
             },
             scales: {
                 x: {
+                    type: 'linear',
                     title: { display: true, text: 'Days' },
                     beginAtZero: true,
                     grid: {
