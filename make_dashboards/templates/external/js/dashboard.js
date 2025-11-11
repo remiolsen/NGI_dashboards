@@ -356,9 +356,6 @@ function make_bar_chart_js(target, title, subtitle, seriesData){
             scales: {
                 x: {
                     stacked: true,
-                    grid: {
-                        display: false
-                    }
                 },
                 y: {
                     stacked: true,
@@ -374,95 +371,112 @@ function make_bar_chart_js(target, title, subtitle, seriesData){
 
 
 function make_finished_lib_median_plot(){
+    // Compute distribution of Sequencing Only delivery times over the last 5 months
     var months = Object.keys(deliverytimes_data).sort().reverse().slice(0,5).reverse();
-    var ydata = [];
-    for (i=0; i<months.length; i++) {
+    var distribution = [];
+    for (var idx=0; idx<months.length; idx++) {
         try {
-            tmp = ydata.concat(deliverytimes_data[months[i]]['Sequencing Only']);
-            ydata = tmp;
-        } catch(err) {continue;}
+            var m = deliverytimes_data[months[idx]]['Sequencing Only'];
+            for (var k in m) {
+                distribution.push(m[k]);
+            }
+        } catch (err) { continue; }
+    }
+    distribution.sort(function(a,b){return a-b;});
+    var median = 0;
+    var n = distribution.length;
+    if (n > 0) {
+        var mid = Math.floor(n/2);
+        median = (n % 2 === 1) ? distribution[mid] : (distribution[mid-1] + distribution[mid]) / 2;
     }
 
-    var median;
-    ydata.sort( function(a,b) {return a - b;} );
-    var half = Math.floor(ydata.length/2);
-    if(ydata.length % 2)
-        median = ydata[half];
-    else
-        median = (ydata[half-1] + ydata[half]) / 2.0;
+    // Compute date label for 5 months from now
+    var labelDate = moment().add(5, 'months').format('YYYY-MM');
+    // Chart container setup
+    var container = document.getElementById('finished_lib_median_tat');
+    container.innerHTML = '';
+    container.style.height = '140px';
+    var canvas = document.createElement('canvas');
+    canvas.height = 180;
+    container.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    if (window.finishedLibMedianChart) {
+        window.finishedLibMedianChart.destroy();
+    }
 
+    // Data points: x = days, y = index
+    var scatterData = distribution.map(function(d, i){
+        return { x: d, y: i };
+    });
 
-    $('#finished_lib_median_tat').highcharts({
-        chart: {
-            type: 'bar',
-            height: 100,
-            spacingLeft: 100,
-            spacingRight: 100,
-            spacingBottom: 10,
-            spacingTop: 0,
-            backgroundColor:'rgba(255, 255, 255, 0.1)',
-            plotBackgroundColor:'#ed8c83',
-            plotBorderColor: '#FFFFFF',
-            plotBorderWidth: 14
-        },
-        xAxis: {
-            categories: ['Queue'],
-            title: { text: null },
-            labels: { enabled: false },
-            tickWidth: 0,
-            lineWidth: 0
-        },
-        yAxis: [{
-            opposite: true,
-            min: 0,
-            max: 6,
-            title: {
-                text: 'Median turn around time for <br> sequencing-ready libraries (since '+months[0]+'): <strong>'+median+' days</strong>',
-                y: -20,
-                style: { 'font-size': 12 }
-            },
-            labels: { enabled: false },
-            gridLineWidth: 0
-        },{
-            min: 0,
-            max: 30,
-            title: { text: null },
-            startOnTick: false,
-            labels: {
-                format: '{value} w',
-                y: 15
-            },
-            tickPositions: [ 0, 1, 2, 3, 4, 5 ],
-            gridLineWidth: 0,
-            plotBands: [{
-                color: '#87BA7D',
-                from: 0,
-                to: 3
-            },{
-                color: '#EDD983',
-                from: 3,
-                to: 4
-            },{
-                color: '#ED8C83',
-                from: 4,
-                to: 20
-            }],
-            plotLines: [{
-                name: 'Finished Lib TaT',
-                color : '#666666',
-                dataLabels: { enabled: true },
-                width: 4,
-                zIndex: 1000,
-                value: median/7
+    window.finishedLibMedianChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Finished Lib TaT',
+                data: scatterData,
+                showLine: true,
+                fill: true,
+                backgroundColor: 'rgba(232,100,83,0.4)',
+                borderColor: 'rgba(232,100,83,1)',
+                borderWidth: 2,
+                pointRadius: 0
             }]
-        }],
-        title: { text: null },
-        legend: { enabled: false },
-        credits: { enabled: false },
-        series: [
-            { data: [0] },
-            { data: [0], yAxis: 1 }
-        ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            parsing: false,
+            plugins: {
+                title: { display: true, text: 'Finished Lib TaT (Distribution with Days on X)' },
+                subtitle: {
+                    display: true,
+                    text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '/ 5 months from current date): ' + median.toFixed(1) + ' days'
+                },
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context){
+                            var day = context.raw && context.raw.x !== undefined ? context.raw.x : distribution[context.dataIndex];
+                            var idx = context.dataIndex + 1;
+                            return 'TaT ' + idx + ': ' + (day !== undefined ? day : 0) + ' days';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Days' },
+                    beginAtZero: true
+                },
+                y: {
+                    display: true,
+                    title: { display: true, text: 'Observation' },
+                    beginAtZero: true
+                }
+            },
+            // Median line as a separate plugin
+            plugins: [{
+                id: 'medianLine',
+                afterDraw: function(chart){
+                    if (!distribution || distribution.length === 0) return;
+                    var med = median;
+                    var x = chart.scales.x.getPixelForValue(med);
+                    var ctx2 = chart.ctx;
+                    ctx2.save();
+                    ctx2.strokeStyle = 'rgba(0,0,0,0.8)';
+                    ctx2.lineWidth = 2;
+                    ctx2.beginPath();
+                    ctx2.moveTo(x, chart.chartArea.top);
+                    ctx2.lineTo(x, chart.chartArea.bottom);
+                    ctx2.stroke();
+                    ctx2.restore();
+                }
+            }]
+        }
     });
 }
 
@@ -549,74 +563,63 @@ function make_throughput_plot(){
     var minutes_per_genome = 3236336281 / (bp_per_day / (24*60));
     var subtitle_text = 'Average for past '+num_weeks+' weeks: '+parseInt(bp_per_day/1000000000)+' Gbp per day <br>(1 Human genome equivalent every '+minutes_per_genome.toFixed(2)+' minutes)';
 
-    $('#throughput_plot').highcharts({
-        chart: {
-            plotBackgroundColor: null,
-            height: plot_height,
-            type: 'area'
+    // Chart.js replacement
+    var labels = weeks;
+    var colorPalette = [
+        'rgba(49,90,123,0.6)',
+        'rgba(55,126,184,0.6)',
+        'rgba(77,175,122,0.6)',
+        'rgba(255,127,14,0.6)',
+        'rgba(166,86,40,0.6)',
+        'rgba(247,129,191,0.6)'
+    ];
+    var datasets = sdata.map(function(ds, idx){
+        return {
+            label: ds.name,
+            data: ds.data,
+            fill: true,
+            backgroundColor: colorPalette[idx % colorPalette.length],
+            borderColor: colorPalette[idx % colorPalette.length].replace('0.6','1'),
+            borderWidth: 1,
+            // stack for Chart.js stacking
+            // @ts potential: keep compatibility with v2 by using 'stack' property if supported
+            stack: 'Stack 0'
+        };
+    });
+
+    var $container = $('#throughput_plot');
+    $container.empty();
+    var $canvas = $('<canvas></canvas>');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+
+    if(window.throughputChart) {
+        window.throughputChart.destroy();
+    }
+    window.throughputChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
         },
-        title: {
-            text: 'Sequencing Throughput',
-            style: { 'font-size': '24px' }
-        },
-        subtitle: {
-            text: subtitle_text
-        },
-        xAxis: {
-            labels: {
-                formatter: function() {
-                    return weeks[this.value];
-                },
-                rotation: -30,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            // stacking
+            scales: {
+                xAxes: [{ stacked: true, ticks: { maxRotation: 0, minRotation: 0 } }],
+                yAxes: [{ stacked: true, ticks: { beginAtZero: true } }]
             },
-            tickInterval: 1,
-            title: { enabled: false },
-        },
-        yAxis: {
-            title: { text: 'Base Pairs' },
-            labels: {
-                formatter: function () {
-                    return this.value.toExponential();
-                }
+            legend: { display: true, position: 'top' },
+            tooltips: { mode: 'index', intersect: false },
+            // no subtitle option; we could modify title to include text
+            title: {
+                display: true,
+                text: 'Sequencing Throughput'
             }
-        },
-        credits: { enabled: false },
-        tooltip: {
-            shared: true,
-            useHTML: true,
-            formatter: function(){
-                tt = '<strong>Week of '+weeks[this.x]+'</strong><br><table>';
-                for(i=0; i<this.points.length; i++){
-                    tt += '<tr><td style="padding-right: 15px;"><span style="color:'+this.points[i].color+';">'
-                    tt += this.points[i].series.name+'</span>:</td><td class="text-right">'
-                    tt += parseInt(this.points[i].y/1000000000)+' Gbp</td></tr>';
-                }
-                tt += '<tr style="border-top: 1px solid #333;"><td><strong>Total:</strong></td>';
-                tt += '<td>'+parseInt(this.points[0].total/1000000000)+' Gbp</td></tr></table>';
-                return tt;
-            }
-        },
-        plotOptions: {
-            area: {
-                stacking: 'normal',
-                lineColor: '#999999',
-                lineWidth: 1,
-                marker: { enabled: false }
-            }
-        },
-        legend: {
-            enabled: true,
-            floating: true,
-            layout: 'horizontal',
-            align: 'left',
-            verticalAlign: 'top',
-            y: 80,
-            x: 90,
-            itemStyle: { 'font-weight': 'normal' },
-            backgroundColor: ((Highcharts.theme && Highcharts.theme.legendBackgroundColor) || '#FFFFFF'),
-        },
-        series: sdata
+        }
     });
 }
+
 
 
