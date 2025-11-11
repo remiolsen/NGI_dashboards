@@ -131,6 +131,9 @@ function make_delivery_times_plot(){
     var $canvas = $('<canvas></canvas>');
     $container.append($canvas);
     var ctx = $canvas[0].getContext('2d');
+    // Ensure the canvas has height for visibility
+    $canvas.attr('height', plot_height-180);
+    $container.css('height', plot_height-180 + 'px');
 
     // Chart.js doughnut configuration
     new Chart(ctx, {
@@ -236,12 +239,16 @@ function make_bar_chart_js(target, title, subtitle, seriesData){
                     display: true,
                     text: subtitle
                 },
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context){
-                            var label = context.dataset.label || '';
-                            var value = context.parsed.y;
-                            return label + ': ' + value;
+                            var series = context.dataset.label || '';
+                            var value = context.parsed.x;
+                            return series + ': ' + value;
                         }
                     }
                 }
@@ -546,6 +553,7 @@ function make_throughput_plot(){
                     },
                     legend: {
                         display: true,
+                        position: 'bottom',
                         labels: {
                             font: { size: 10  },
                             boxWidth: 10,
