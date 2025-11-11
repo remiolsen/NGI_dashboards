@@ -641,7 +641,14 @@ function make_throughput_plot(){
                         display: true,
                         text: subtitle_text,
                     },
-                    legend: { display: true },
+                    legend: {
+                        display: true,
+                        labels: {
+                            font: { size: 10  },
+                            boxWidth: 10,
+                            padding: 4
+                        }
+                    },
                     tooltips: { mode: 'index', intersect: false }
                 }
             }
