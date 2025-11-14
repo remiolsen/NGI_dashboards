@@ -188,14 +188,16 @@ jQuery(function($) {
           make_bar_chart_js('#num_projects_plot', '# Projects in '+year, subtitle, {'Library prep': ydata, 'Sequencing only': ydata_seq, 'Ongoing': open});
 
           // Delivery times plot
-          delivery_times_histograms(year);
+          // delivery_times_histograms(year);
+          make_delivery_times_histograms_chartjs(year);
 
           // Delivery times plot
           // make_delivery_times_plot(year);
           make_delivery_times_plot_chartjs(year);
 
           // Finished Library turn-around-time plot
-          make_finished_lib_median_plot(year);
+          // make_finished_lib_median_plot(year);
+          make_median_tat_plot_chartjs(year);
 
           // Affiliations plot
           // make_affiliations_plot(year);
@@ -1148,7 +1150,324 @@ jQuery(function($) {
                     }
                 }
             });
-    }
-});
+        }
+        
+    function make_delivery_times_histograms_chartjs(year){
+        var ydata = collect_year(deliverytimes_data, year);
+        var applications = Object.keys(ydata);
+    
+            // Sort by total count
+            var totals = [];
+            for(var i = 0; i < applications.length; i++){
+                totals.push([applications[i], ydata[applications[i]].reduce(function(a, b) { return a + b; }, 0)]);
+            }
+            totals.sort(function(a, b) {
+                return b[1] - a[1];
+            });
+            
+            function median_bar(data, hist) {
+                var yvals = [];
+                for(idx = 0; idx < hist.length; idx++){
+                    yvals.push(hist[idx][1]);
+                }
+                data.sort( function(a,b) {return a - b;} );
+                var halfval = Math.floor(data.length/2);
+                var maxval = Math.max.apply(null, yvals);
+                if(data.length % 2) {
+                    return [ data[halfval]/7, maxval ];
+                } else {
+                    return [ ((data[halfval-1] + data[halfval]) / 2.0)/7, maxval ];
+                }
+            }
+            
+            // Create datasets for plot
+            var datasets = [];
+            var misc_applications = [];
+            var misc_app_data = [];
+            var top_total = totals.slice(0,3).sort();
+            var the_rest = totals.slice(3,);
+            
+            // Put sequencing only first
+            for(var i=0; i < top_total.length; i++) {
+                if(top_total[i][0] == "Sequencing Only"){
+                    top_total.splice(0, 0, top_total.splice(i, 1)[0]);
+                }
+            }
+    
+            for (var i = 0; i < the_rest.length; i++) {
+                misc_applications.push(the_rest[i][0]);
+                misc_app_data = misc_app_data.concat(ydata[the_rest[i][0]]);
+            }
+            
+            // Create datasets for top applications
+            for(var i = 0; i < top_total.length; i++){
+                var application = top_total[i][0];
+                var app_data = ydata[application];
+                var hist = histogram(app_data, 7);
+                
+                // Area chart data
+                // Convert [x, y] tuples to {x, y} objects for Chart.js
+                var formattedData = hist.map(function(point) {
+                    return {x: point[0], y: point[1]};
+                });
+                datasets.push({
+                    label: application,
+                    data: formattedData,
+                    backgroundColor: 'rgba(55, 126, 184, 0.2)',
+                    borderColor: 'rgba(55, 126, 184, 1)',
+                    borderWidth: 1,
+                    fill: true,
+                    showLine: true,
+                    pointRadius: 0,
+                    tension: 0.4
+                });
+                
+                // Median line (as vertical line)
+                var medianData = median_bar(app_data, hist);
+                // Create a line dataset for the median
+                datasets.push({
+                    label: 'Median: ' + application,
+                    data: [
+                        {x: medianData[0], y: 0},
+                        {x: medianData[0], y: medianData[1]}
+                    ],
+                    borderColor: '#666',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    showLine: true,
+                    fill: false
+                });
+            }
+            
+            // Create datasets for miscellaneous applications
+            if(misc_app_data.length > 0){
+                var hist = histogram(misc_app_data, 7);
+                
+                // Convert [x, y] tuples to {x, y} objects for Chart.js
+                var formattedData = hist.map(function(point) {
+                    return {x: point[0], y: point[1]};
+                });
+                datasets.push({
+                    label: 'Others (' + misc_applications.join(', ') + ')',
+                    data: formattedData,
+                    backgroundColor: 'rgba(152, 78, 163, 0.2)',
+                    borderColor: 'rgba(152, 78, 163, 1)',
+                    borderWidth: 1,
+                    fill: true,
+                    showLine: true,
+                    pointRadius: 0,
+                    tension: 0.4
+                });
+                
+                // Median line (as vertical line)
+                var medianData = median_bar(misc_app_data, hist);
+                // Create a line dataset for the median
+                datasets.push({
+                    label: 'Median: Others',
+                    data: [
+                        {x: medianData[0], y: 0},
+                        {x: medianData[0], y: medianData[1]}
+                    ],
+                    borderColor: '#666',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    showLine: true,
+                    fill: false
+                });
+            }
+            
+            // Chart container setup
+            var container = document.getElementById('delivery_time_histograms');
+            container.innerHTML = '';
+            container.style.height = plot_height + 'px';
+            var canvas = document.createElement('canvas');
+            canvas.height = plot_height;
+            container.appendChild(canvas);
+            var ctx = canvas.getContext('2d');
+            
+            // Clean up any existing chart
+            if (window.deliveryTimesHistogramChart) {
+                window.deliveryTimesHistogramChart.destroy();
+            }
+            
+            // Create Chart.js chart - using multiple charts in a container for subplots
+            window.deliveryTimesHistogramChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Turnaround Times in ' + year,
+                            font: { size: 18 }
+                        },
+                        subtitle: {
+                            display: true,
+                            text: 'Projects started in ' + year
+                        },
+                        legend: {
+                            display: true,
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    var label = context.dataset.label || '';
+                                    if (context.parsed.y !== null) {
+                                        return label + ': ' + context.parsed.y;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Number of Weeks'
+                            },
+                            min: 0,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function make_median_tat_plot_chartjs(year){
+            var ydata = collect_year(deliverytimes_data, year)['Sequencing Only'];
+            ydata = get_median(ydata);
+            
+            // Chart container setup
+            var container = document.getElementById('finished_lib_median_tat');
+            container.innerHTML = '';
+            container.style.height = '100px';
+            
+            var canvas = document.createElement('canvas');
+            canvas.height = 100;
+            container.appendChild(canvas);
+            var ctx = canvas.getContext('2d');
+            
+            // Clean up any existing chart
+            if (window.medianTatChart) {
+                window.medianTatChart.destroy();
+            }
+            
+            // Create Chart.js chart that replicates the Highcharts visualization
+            window.medianTatChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Queue'],
+                    datasets: [
+                        {
+                            data: [1], // This is just a background bar
+                            backgroundColor: '#ed8c83',
+                            borderColor: '#FFFFFF',
+                            borderWidth: 14,
+                            barPercentage: 1.0,
+                            categoryPercentage: 1.0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        title: {
+                            display: false
+                        },
+                        legend: {
+                            display: false
+                        },
+                        annotation: {
+                            annotations: {
+                                // Green band (0-3 weeks)
+                                greenBand: {
+                                    type: 'box',
+                                    xMin: 0,
+                                    xMax: 3,
+                                    backgroundColor: 'rgba(135, 186, 125, 0.5)',
+                                    borderColor: 'rgba(135, 186, 125, 0)',
+                                    borderWidth: 0
+                                },
+                                // Yellow band (3-4 weeks)
+                                yellowBand: {
+                                    type: 'box',
+                                    xMin: 3,
+                                    xMax: 4,
+                                    backgroundColor: 'rgba(237, 217, 131, 0.5)',
+                                    borderColor: 'rgba(237, 217, 131, 0)',
+                                    borderWidth: 0
+                                },
+                                // Red band (4+ weeks)
+                                redBand: {
+                                    type: 'box',
+                                    xMin: 4,
+                                    xMax: 30,
+                                    backgroundColor: 'rgba(237, 140, 131, 0.5)',
+                                    borderColor: 'rgba(237, 140, 131, 0)',
+                                    borderWidth: 0
+                                },
+                                // Median line
+                                medianLine: {
+                                    type: 'line',
+                                    xMin: ydata/7,
+                                    xMax: ydata/7,
+                                    borderColor: '#666666',
+                                    borderWidth: 4,
+                                    borderDash: [6, 6],
+                                    label: {
+                                        display: true,
+                                        content: 'Median turn around time for sequencing-ready libraries: ' + ydata + ' days',
+                                        position: 'start',
+                                        backgroundColor: 'rgba(0,0,0,0.7)',
+                                        font: {
+                                            size: 12
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            min: 0,
+                            max: 6,
+                            title: {
+                                display: true,
+                                text: 'Weeks',
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + ' w';
+                                }
+                            }
+                        },
+                        y: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    });
 
 </script>
