@@ -9,10 +9,22 @@
     </div>
 </form>
 
+<style>
+.delivery-time-chart {
+  height: 200px;
+  margin-bottom: 20px;
+}
+</style>
+
 <div class="plots_content">
   <div class="row">
-    <div class="col-sm-6">
-      <div id="delivery_time_histograms" class="my-4"></div>
+    <div class="col-sm-12">
+      <div id="delivery_time_histograms" class="my-4">
+        <div class="delivery-time-chart" id="delivery_time_sequencing_only"></div>
+        <div class="delivery-time-chart" id="delivery_time_top_application_1"></div>
+        <div class="delivery-time-chart" id="delivery_time_top_application_2"></div>
+        <div class="delivery-time-chart" id="delivery_time_others"></div>
+      </div>
     </div>
     <div class="col-sm-6">
       <div id="delivery_times_plot" class="my-4"></div>
@@ -197,7 +209,7 @@ jQuery(function($) {
 
           // Finished Library turn-around-time plot
           // make_finished_lib_median_plot(year);
-          make_median_tat_plot_chartjs(year);
+          make_finished_lib_median_plot();
 
           // Affiliations plot
           // make_affiliations_plot(year);
@@ -1156,313 +1168,379 @@ jQuery(function($) {
         var ydata = collect_year(deliverytimes_data, year);
         var applications = Object.keys(ydata);
     
-            // Sort by total count
-            var totals = [];
-            for(var i = 0; i < applications.length; i++){
-                totals.push([applications[i], ydata[applications[i]].reduce(function(a, b) { return a + b; }, 0)]);
+        // Sort by total count
+        var totals = [];
+        for(var i = 0; i < applications.length; i++){
+            totals.push([applications[i], ydata[applications[i]].reduce(function(a, b) { return a + b; }, 0)]);
+        }
+        totals.sort(function(a, b) {
+            return b[1] - a[1];
+        });
+        
+        function median_bar(data, hist) {
+            var yvals = [];
+            for(idx = 0; idx < hist.length; idx++){
+                yvals.push(hist[idx][1]);
             }
-            totals.sort(function(a, b) {
-                return b[1] - a[1];
+            data.sort( function(a,b) {return a - b;} );
+            var halfval = Math.floor(data.length/2);
+            var maxval = Math.max.apply(null, yvals);
+            if(data.length % 2) {
+                return [ data[halfval]/7, maxval ];
+            } else {
+                return [ ((data[halfval-1] + data[halfval]) / 2.0)/7, maxval ];
+            }
+        }
+        
+        // Get top applications
+        var misc_applications = [];
+        var misc_app_data = [];
+        var top_total = totals.slice(0,3).sort();
+        var the_rest = totals.slice(3,);
+        
+        // Put sequencing only first
+        for(var i=0; i < top_total.length; i++) {
+            if(top_total[i][0] == "Sequencing Only"){
+                top_total.splice(0, 0, top_total.splice(i, 1)[0]);
+            }
+        }
+
+        for (var i = 0; i < the_rest.length; i++) {
+            misc_applications.push(the_rest[i][0]);
+            misc_app_data = misc_app_data.concat(ydata[the_rest[i][0]]);
+        }
+        
+        // Clean up any existing charts
+        if (window.deliveryTimesCharts) {
+            for (var i = 0; i < window.deliveryTimesCharts.length; i++) {
+                if (window.deliveryTimesCharts[i]) {
+                    window.deliveryTimesCharts[i].destroy();
+                }
+            }
+        }
+        window.deliveryTimesCharts = [];
+        
+        // Create charts for each application
+        for(var i = 0; i < top_total.length; i++){
+            var application = top_total[i][0];
+            var app_data = ydata[application];
+            var hist = histogram(app_data, 1);
+            
+            // Area chart data
+            // Convert [x, y] tuples to {x, y} objects for Chart.js
+            var formattedData = hist.map(function(point) {
+                return {x: point[0], y: point[1]};
             });
             
-            function median_bar(data, hist) {
-                var yvals = [];
-                for(idx = 0; idx < hist.length; idx++){
-                    yvals.push(hist[idx][1]);
-                }
-                data.sort( function(a,b) {return a - b;} );
-                var halfval = Math.floor(data.length/2);
-                var maxval = Math.max.apply(null, yvals);
-                if(data.length % 2) {
-                    return [ data[halfval]/7, maxval ];
-                } else {
-                    return [ ((data[halfval-1] + data[halfval]) / 2.0)/7, maxval ];
-                }
+            // Calculate median in days
+            var sortedData = app_data.slice().sort(function(a,b){return a-b;});
+            var median = 0;
+            var n = sortedData.length;
+            if (n > 0) {
+                var mid = Math.floor(n/2);
+                median = (n % 2 === 1) ? sortedData[mid] : (sortedData[mid-1] + sortedData[mid]) / 2;
             }
             
-            // Create datasets for plot
+            // Create datasets for this application
+            var colorPalette = [
+                { bg: 'rgba(55, 126, 184, 0.2)', border: 'rgba(55, 126, 184, 1)' },      // blue
+                { bg: 'rgba(77, 175, 74, 0.2)', border: 'rgba(77, 175, 74, 1)' },        // green
+                { bg: 'rgba(152, 78, 163, 0.2)', border: 'rgba(152, 78, 163, 1)' },      // purple
+                { bg: 'rgba(255, 127, 0, 0.2)', border: 'rgba(255, 127, 0, 1)' }         // orange
+            ];
+            var colors = colorPalette[i % colorPalette.length];
             var datasets = [];
-            var misc_applications = [];
-            var misc_app_data = [];
-            var top_total = totals.slice(0,3).sort();
-            var the_rest = totals.slice(3,);
-            
-            // Put sequencing only first
-            for(var i=0; i < top_total.length; i++) {
-                if(top_total[i][0] == "Sequencing Only"){
-                    top_total.splice(0, 0, top_total.splice(i, 1)[0]);
-                }
-            }
-    
-            for (var i = 0; i < the_rest.length; i++) {
-                misc_applications.push(the_rest[i][0]);
-                misc_app_data = misc_app_data.concat(ydata[the_rest[i][0]]);
-            }
-            
-            // Create datasets for top applications
-            for(var i = 0; i < top_total.length; i++){
-                var application = top_total[i][0];
-                var app_data = ydata[application];
-                var hist = histogram(app_data, 7);
-                
-                // Area chart data
-                // Convert [x, y] tuples to {x, y} objects for Chart.js
-                var formattedData = hist.map(function(point) {
-                    return {x: point[0], y: point[1]};
-                });
-                datasets.push({
-                    label: application,
-                    data: formattedData,
-                    backgroundColor: 'rgba(55, 126, 184, 0.2)',
-                    borderColor: 'rgba(55, 126, 184, 1)',
-                    borderWidth: 1,
-                    fill: true,
-                    showLine: true,
-                    pointRadius: 0,
-                    tension: 0.4
-                });
-                
-                // Median line (as vertical line)
-                var medianData = median_bar(app_data, hist);
-                // Create a line dataset for the median
-                datasets.push({
-                    label: 'Median: ' + application,
-                    data: [
-                        {x: medianData[0], y: 0},
-                        {x: medianData[0], y: medianData[1]}
-                    ],
-                    borderColor: '#666',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    showLine: true,
-                    fill: false
-                });
-            }
-            
-            // Create datasets for miscellaneous applications
-            if(misc_app_data.length > 0){
-                var hist = histogram(misc_app_data, 7);
-                
-                // Convert [x, y] tuples to {x, y} objects for Chart.js
-                var formattedData = hist.map(function(point) {
-                    return {x: point[0], y: point[1]};
-                });
-                datasets.push({
-                    label: 'Others (' + misc_applications.join(', ') + ')',
-                    data: formattedData,
-                    backgroundColor: 'rgba(152, 78, 163, 0.2)',
-                    borderColor: 'rgba(152, 78, 163, 1)',
-                    borderWidth: 1,
-                    fill: true,
-                    showLine: true,
-                    pointRadius: 0,
-                    tension: 0.4
-                });
-                
-                // Median line (as vertical line)
-                var medianData = median_bar(misc_app_data, hist);
-                // Create a line dataset for the median
-                datasets.push({
-                    label: 'Median: Others',
-                    data: [
-                        {x: medianData[0], y: 0},
-                        {x: medianData[0], y: medianData[1]}
-                    ],
-                    borderColor: '#666',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    showLine: true,
-                    fill: false
-                });
-            }
+            datasets.push({
+                label: 'Frequency',
+                data: formattedData,
+                backgroundColor: colors.bg,
+                borderColor: colors.border,
+                borderWidth: 1,
+                fill: true,
+                pointRadius: 0,
+                tension: 0.4
+            });
             
             // Chart container setup
-            var container = document.getElementById('delivery_time_histograms');
-            container.innerHTML = '';
-            container.style.height = plot_height + 'px';
-            var canvas = document.createElement('canvas');
-            canvas.height = plot_height;
-            container.appendChild(canvas);
-            var ctx = canvas.getContext('2d');
-            
-            // Clean up any existing chart
-            if (window.deliveryTimesHistogramChart) {
-                window.deliveryTimesHistogramChart.destroy();
+            var containerId = '';
+            if (application === "Sequencing Only") {
+                containerId = 'delivery_time_sequencing_only';
+            } else if (i === 1) {
+                containerId = 'delivery_time_top_application_1';
+            } else {
+                containerId = 'delivery_time_top_application_2';
             }
             
-            // Create Chart.js chart - using multiple charts in a container for subplots
-            window.deliveryTimesHistogramChart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Turnaround Times in ' + year,
-                            font: { size: 18 }
-                        },
-                        subtitle: {
-                            display: true,
-                            text: 'Projects started in ' + year
-                        },
-                        legend: {
-                            display: true,
-                            position: 'bottom'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    var label = context.dataset.label || '';
-                                    if (context.parsed.y !== null) {
-                                        return label + ': ' + context.parsed.y;
+            var container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = '';
+                var canvas = document.createElement('canvas');
+                canvas.height = 200;
+                container.appendChild(canvas);
+                var ctx = canvas.getContext('2d');
+                
+                // Create Chart.js chart
+                var chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: application + ' in ' + year
+                            },
+                            subtitle: {
+                                display: true,
+                                text: 'Median: ' + median.toFixed(1) + ' days'
+                            },
+                            legend: {
+                                display: false
+                            },
+                            annotation: {
+                                annotations: {
+                                    medianLine: {
+                                        type: 'line',
+                                        xMin: median,
+                                        xMax: median,
+                                        borderColor: 'rgba(55,126,184,1)',
+                                        borderWidth: 2,
+                                        borderDash: [6, 6]
                                     }
                                 }
                             }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Number of Weeks'
-                            },
-                            min: 0,
-                            ticks: {
-                                stepSize: 1
-                            }
                         },
-                        y: {
-                            beginAtZero: true,
-                            title: {
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: 'Days'
+                                },
+                                beginAtZero: true,
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
                                 display: true,
-                                text: 'Frequency'
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Frequency'
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+                
+                window.deliveryTimesCharts.push(chart);
+            }
         }
         
-        function make_median_tat_plot_chartjs(year){
-            var ydata = collect_year(deliverytimes_data, year)['Sequencing Only'];
-            ydata = get_median(ydata);
+        // Create chart for miscellaneous applications if there are any
+        if(misc_app_data.length > 0){
+            var hist = histogram(misc_app_data, 1);
             
+            // Convert [x, y] tuples to {x, y} objects for Chart.js
+            var formattedData = hist.map(function(point) {
+                return {x: point[0], y: point[1]};
+            });
+            
+            // Calculate median in days
+            var sortedData = misc_app_data.slice().sort(function(a,b){return a-b;});
+            var median = 0;
+            var n = sortedData.length;
+            if (n > 0) {
+                var mid = Math.floor(n/2);
+                median = (n % 2 === 1) ? sortedData[mid] : (sortedData[mid-1] + sortedData[mid]) / 2;
+            }
+            
+            // Create datasets for miscellaneous applications (use orange for variety)
+            var datasets = [];
+            datasets.push({
+                label: 'Frequency',
+                data: formattedData,
+                backgroundColor: 'rgba(255, 127, 0, 0.2)',
+                borderColor: 'rgba(255, 127, 0, 1)',
+                borderWidth: 1,
+                fill: true,
+                pointRadius: 0,
+                tension: 0.4
+            });
+            
+            // Chart container setup
+            var container = document.getElementById('delivery_time_others');
+            if (container) {
+                container.innerHTML = '';
+                var canvas = document.createElement('canvas');
+                canvas.height = 200;
+                container.appendChild(canvas);
+                var ctx = canvas.getContext('2d');
+                
+                // Create Chart.js chart
+                var chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Others in ' + year
+                            },
+                            subtitle: {
+                                display: true,
+                                text: 'Median: ' + median.toFixed(1) + ' days'
+                            },
+                            legend: {
+                                display: false
+                            },
+                            annotation: {
+                                annotations: {
+                                    medianLine: {
+                                        type: 'line',
+                                        xMin: median,
+                                        xMax: median,
+                                        borderColor: 'rgba(55,126,184,1)',
+                                        borderWidth: 2,
+                                        borderDash: [6, 6]
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: 'Days'
+                                },
+                                beginAtZero: true,
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                display: true,
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Frequency'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                window.deliveryTimesCharts.push(chart);
+            }
+        }
+    }
+        
+        function make_finished_lib_median_plot(){
+            // Compute distribution of Sequencing Only delivery times over the last 5 months
+            var months = Object.keys(deliverytimes_data).sort().reverse().slice(0,5).reverse();
+            var distribution = [];
+            for (var idx=0; idx<months.length; idx++) {
+                try {
+                    var m = deliverytimes_data[months[idx]]['Sequencing Only'];
+                    for (var k in m) {
+                        distribution.push(m[k]);
+                    }
+                } catch (err) { continue; }
+            }
+            distribution.sort(function(a,b){return a-b;});
+            var median = 0;
+            var n = distribution.length;
+            if (n > 0) {
+                var mid = Math.floor(n/2);
+                median = (n % 2 === 1) ? distribution[mid] : (distribution[mid-1] + distribution[mid]) / 2;
+            }
+
+            // Compute date label for 5 months from now
+            var labelDate = moment().add(5, 'months').format('YYYY-MM');
             // Chart container setup
             var container = document.getElementById('finished_lib_median_tat');
             container.innerHTML = '';
-            container.style.height = '100px';
-            
+            container.style.height = '180px';
             var canvas = document.createElement('canvas');
-            canvas.height = 100;
+            canvas.height = 180;
             container.appendChild(canvas);
             var ctx = canvas.getContext('2d');
-            
-            // Clean up any existing chart
-            if (window.medianTatChart) {
-                window.medianTatChart.destroy();
+            if (window.finishedLibMedianChart) {
+                window.finishedLibMedianChart.destroy();
             }
-            
-            // Create Chart.js chart that replicates the Highcharts visualization
-            window.medianTatChart = new Chart(ctx, {
-                type: 'bar',
+
+            // Create frequency data for line chart from raw distribution
+            var frequencyData = {};
+            distribution.forEach(function(value) {
+                var key = Math.floor(value);
+                frequencyData[key] = (frequencyData[key] || 0) + 1;
+            });
+
+            // Convert frequency data to chart data points
+            var dataPoints = [];
+            Object.keys(frequencyData).map(Number).sort(function(a,b){return a-b;}).forEach(function(key) {
+                dataPoints.push({x: key, y: frequencyData[key]});
+            });
+
+            // Create a vertical line for the median
+            window.finishedLibMedianChart = new Chart(ctx, {
+                type: 'line',
                 data: {
-                    labels: ['Queue'],
-                    datasets: [
-                        {
-                            data: [1], // This is just a background bar
-                            backgroundColor: '#ed8c83',
-                            borderColor: '#FFFFFF',
-                            borderWidth: 14,
-                            barPercentage: 1.0,
-                            categoryPercentage: 1.0
-                        }
-                    ]
+                    datasets: [{
+                        label: 'Frequency',
+                        data: dataPoints,
+                        backgroundColor: 'rgba(232,100,83,0.4)',
+                        borderColor: 'rgba(232,100,83,1)',
+                        borderWidth: 1,
+                        fill: true,
+                        pointRadius: 0
+                    }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    indexAxis: 'y',
                     plugins: {
-                        title: {
-                            display: false
-                        },
-                        legend: {
-                            display: false
+                        legend: { display: false },
+                        title: { display: true, text: 'Finished Lib TaT' },
+                        subtitle: {
+                            display: true,
+                            text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '): ' + median.toFixed(1) + ' days'
                         },
                         annotation: {
                             annotations: {
-                                // Green band (0-3 weeks)
-                                greenBand: {
-                                    type: 'box',
-                                    xMin: 0,
-                                    xMax: 3,
-                                    backgroundColor: 'rgba(135, 186, 125, 0.5)',
-                                    borderColor: 'rgba(135, 186, 125, 0)',
-                                    borderWidth: 0
-                                },
-                                // Yellow band (3-4 weeks)
-                                yellowBand: {
-                                    type: 'box',
-                                    xMin: 3,
-                                    xMax: 4,
-                                    backgroundColor: 'rgba(237, 217, 131, 0.5)',
-                                    borderColor: 'rgba(237, 217, 131, 0)',
-                                    borderWidth: 0
-                                },
-                                // Red band (4+ weeks)
-                                redBand: {
-                                    type: 'box',
-                                    xMin: 4,
-                                    xMax: 30,
-                                    backgroundColor: 'rgba(237, 140, 131, 0.5)',
-                                    borderColor: 'rgba(237, 140, 131, 0)',
-                                    borderWidth: 0
-                                },
-                                // Median line
                                 medianLine: {
                                     type: 'line',
-                                    xMin: ydata/7,
-                                    xMax: ydata/7,
-                                    borderColor: '#666666',
-                                    borderWidth: 4,
+                                    xMin: median,
+                                    xMax: median,
+                                    borderColor: 'rgba(55,126,184,1)',
+                                    borderWidth: 2,
                                     borderDash: [6, 6],
-                                    label: {
-                                        display: true,
-                                        content: 'Median turn around time for sequencing-ready libraries: ' + ydata + ' days',
-                                        position: 'start',
-                                        backgroundColor: 'rgba(0,0,0,0.7)',
-                                        font: {
-                                            size: 12
-                                        }
-                                    }
                                 }
                             }
                         }
                     },
                     scales: {
                         x: {
-                            display: true,
-                            min: 0,
-                            max: 6,
-                            title: {
-                                display: true,
-                                text: 'Weeks',
-                                font: {
-                                    size: 12
-                                }
-                            },
-                            ticks: {
-                                callback: function(value) {
-                                    return value + ' w';
-                                }
+                            type: 'linear',
+                            title: { display: true, text: 'Days' },
+                            beginAtZero: true,
+                            grid: {
+                                display: false
                             }
                         },
                         y: {
-                            display: false
+                            display: true,
+                            title: { display: true, text: 'Frequency' },
+                            beginAtZero: true
                         }
                     }
                 }
