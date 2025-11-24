@@ -1224,7 +1224,7 @@ jQuery(function($) {
         for(var i = 0; i < top_total.length; i++){
             var application = top_total[i][0];
             var app_data = ydata[application];
-            var hist = histogram(app_data, 1);
+            var hist = histogram(app_data, 7);
             
             // Area chart data
             // Convert [x, y] tuples to {x, y} objects for Chart.js
@@ -1232,13 +1232,13 @@ jQuery(function($) {
                 return {x: point[0], y: point[1]};
             });
             
-            // Calculate median in days
+            // Calculate median in weeks
             var sortedData = app_data.slice().sort(function(a,b){return a-b;});
             var median = 0;
             var n = sortedData.length;
             if (n > 0) {
                 var mid = Math.floor(n/2);
-                median = (n % 2 === 1) ? sortedData[mid] : (sortedData[mid-1] + sortedData[mid]) / 2;
+                median = (n % 2 === 1) ? sortedData[mid] / 7 : (sortedData[mid-1] + sortedData[mid]) / 2 / 7;
             }
             
             // Create datasets for this application
@@ -1257,8 +1257,7 @@ jQuery(function($) {
                 borderColor: colors.border,
                 borderWidth: 1,
                 fill: true,
-                pointRadius: 0,
-                tension: 0.4
+                pointRadius: 0
             });
             
             // Chart container setup
@@ -1295,7 +1294,7 @@ jQuery(function($) {
                             },
                             subtitle: {
                                 display: true,
-                                text: 'Median: ' + median.toFixed(1) + ' days'
+                                text: 'Median: ' + median.toFixed(1) + ' weeks'
                             },
                             legend: {
                                 display: false
@@ -1318,9 +1317,10 @@ jQuery(function($) {
                                 type: 'linear',
                                 title: {
                                     display: true,
-                                    text: 'Days'
+                                    text: 'Weeks'
                                 },
                                 beginAtZero: true,
+                                max: 20,
                                 grid: {
                                     display: false
                                 }
@@ -1343,20 +1343,20 @@ jQuery(function($) {
         
         // Create chart for miscellaneous applications if there are any
         if(misc_app_data.length > 0){
-            var hist = histogram(misc_app_data, 1);
+            var hist = histogram(misc_app_data, 7);
             
             // Convert [x, y] tuples to {x, y} objects for Chart.js
             var formattedData = hist.map(function(point) {
                 return {x: point[0], y: point[1]};
             });
             
-            // Calculate median in days
+            // Calculate median in weeks
             var sortedData = misc_app_data.slice().sort(function(a,b){return a-b;});
             var median = 0;
             var n = sortedData.length;
             if (n > 0) {
                 var mid = Math.floor(n/2);
-                median = (n % 2 === 1) ? sortedData[mid] : (sortedData[mid-1] + sortedData[mid]) / 2;
+                median = (n % 2 === 1) ? sortedData[mid] / 7 : (sortedData[mid-1] + sortedData[mid]) / 2 / 7;
             }
             
             // Create datasets for miscellaneous applications (use orange for variety)
@@ -1369,7 +1369,6 @@ jQuery(function($) {
                 borderWidth: 1,
                 fill: true,
                 pointRadius: 0,
-                tension: 0.4
             });
             
             // Chart container setup
@@ -1397,7 +1396,7 @@ jQuery(function($) {
                             },
                             subtitle: {
                                 display: true,
-                                text: 'Median: ' + median.toFixed(1) + ' days'
+                                text: 'Median: ' + median.toFixed(1) + ' weeks'
                             },
                             legend: {
                                 display: false
@@ -1420,9 +1419,10 @@ jQuery(function($) {
                                 type: 'linear',
                                 title: {
                                     display: true,
-                                    text: 'Days'
+                                    text: 'Weeks'
                                 },
                                 beginAtZero: true,
+                                max: 20,
                                 grid: {
                                     display: false
                                 }
