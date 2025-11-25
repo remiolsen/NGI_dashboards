@@ -219,6 +219,25 @@ function make_bar_chart_js(target, title, subtitle, seriesData){
     $canvas.attr('height', plot_height);
     $container.css('height', plot_height + 'px');
 
+    // Create annotations for category totals
+    var annotations = {};
+    categories.forEach(function(cat, idx){
+        var total = categoryTotals[cat];
+        annotations['label' + idx] = {
+            type: 'label',
+            yValue: cat,
+            xValue: total,
+            xAdjust: 14,
+            backgroundColor: 'rgba(0,0,0,0)',
+            color: '#333',
+            content: total.toString(),
+            font: {
+                size: 11,
+                weight: 'bold'
+            }
+        };
+    });
+
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -251,6 +270,9 @@ function make_bar_chart_js(target, title, subtitle, seriesData){
                             return series + ': ' + value;
                         }
                     }
+                },
+                annotation: {
+                    annotations: annotations
                 }
             },
             scales: {
@@ -467,15 +489,20 @@ function make_throughput_plot(){
     var total_count = 0;
     for(j=0; j<skeys.length; j++){
         var swdata = Array();
+        var series_total = 0;
         for(i=0; i<num_weeks; i++){
             thisdata = data['bp_seq_per_week'][weeks[i]][skeys[j]];
             swdata.push(thisdata == undefined ? 0 : thisdata);
             total_count += thisdata == undefined ? 0 : thisdata;
+            series_total += thisdata == undefined ? 0 : thisdata;
         }
-        sdata.push({
-            name: skeys[j],
-            data: swdata
-        });
+        // Only include series with non-zero data
+        if(series_total > 0){
+            sdata.push({
+                name: skeys[j],
+                data: swdata
+            });
+        }
     }
     // Subtitle text
     var bp_per_day = total_count / (num_weeks * 7);
