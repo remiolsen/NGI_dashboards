@@ -123,6 +123,9 @@ function make_delivery_times_plot(){
     }
     var median = computeMedian(values);
 
+    // Calculate total for percentages
+    var total = values.reduce(function(a, b) { return a + b; }, 0);
+
     // Prepare container
     var $container = $('#delivery_times_plot');
     $container.empty(); // remove any previous content
@@ -164,12 +167,13 @@ function make_delivery_times_plot(){
                     display: true,
                     position: 'right'
                 },
-                tooltips: {
+                tooltip: {
                     callbacks: {
-                        label: function(tooltipItem, data){
-                            var label = data.labels[tooltipItem.index] || '';
-                            var val = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                            return label + ': ' + val + ' projects';
+                        label: function(context){
+                            var label = context.label || '';
+                            var val = context.parsed;
+                            var percentage = ((val / total) * 100).toFixed(1);
+                            return label + ': ' + val + ' projects (' + percentage + '%)';
                         }
                     }
                 }
@@ -523,12 +527,16 @@ function make_throughput_plot(){
         'rgba(228,26,28,0.6)'
     ];
     var datasets = sdata.map(function(ds, idx){
+        // Divide data by 1 billion for Gbp display
+        var gbpData = ds.data.map(function(val) { return val / 1000000000; });
         return {
             label: ds.name,
-            data: ds.data,
+            data: gbpData,
             fill: true,
             backgroundColor: colorPalette[idx % colorPalette.length],
             borderColor: colorPalette[idx % colorPalette.length].replace('0.6','1'),
+            borderWidth: 1,
+            pointRadius: 0
         };
     });
 
@@ -551,9 +559,12 @@ function make_throughput_plot(){
                 datasets: datasets
             },
             options: {
-                radius: 0,
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
                 scales: {
                     x: {
                         stacked: true,
@@ -563,8 +574,10 @@ function make_throughput_plot(){
                     },
                     y: {
                         stacked: true,
-                        ticks: {
-                            beginAtZero: true,
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Giga base pairs'
                         }
                     }
                 },
@@ -577,6 +590,7 @@ function make_throughput_plot(){
                     subtitle: {
                         display: true,
                         text: subtitle_text,
+                        padding: { bottom: 5 }
                     },
                     legend: {
                         display: true,
@@ -587,7 +601,10 @@ function make_throughput_plot(){
                             padding: 4
                         }
                     },
-                    tooltips: { mode: 'index', intersect: false }
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
                 }
             }
         });

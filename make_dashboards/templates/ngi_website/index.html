@@ -78,14 +78,6 @@ jQuery(function($) {
 
     try {
 
-        // Highcharts.setOptions({
-        //     colors: ['#377eb8','#4daf4a','#984ea3','#ff7f00','#a65628','#f781bf','#999999','#e41a1c'],
-        //     chart: {
-        //         style: {
-        //             fontFamily:'"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif'
-        //         }
-        //     }
-        // });
 
         // Calculate how old the report is
         var updated = moment($('#date_rendered').text(), 'YYYY-MM-DD, HH:mm');
@@ -121,10 +113,6 @@ jQuery(function($) {
 
         // Plot everything that's year based
         plot_everything(years[0]);
-
-        // Open Projects plot
-        // Add open sequencing and open lib prep projects
-        //make_bar_plot('#open_projects_plot', 'Currently Open Projects', 'Number of Projects', false, {'Projects': ydata});
 
     } catch(err){
         $('.plots_content').html('<div class="alert alert-danger text-center" style="margin: 100px 50px;"><p><strong>Apologies, there was an error whilst loading this data.</strong> Please try again soon.</p></div>');
@@ -933,6 +921,9 @@ jQuery(function($) {
         }
         var median = computeMedian(values);
 
+        // Calculate total for percentage calculation
+        var total = values.reduce(function(a, b) { return a + b; }, 0);
+
         // Prepare container
         var $container = $('#delivery_times_plot');
         $container.empty(); // remove any previous content
@@ -979,7 +970,8 @@ jQuery(function($) {
                             label: function(context){
                                 var label = context.label || '';
                                 var val = context.parsed;
-                                return label + ': ' + val + ' projects';
+                                var percentage = ((val / total) * 100).toFixed(1);
+                                return label + ': ' + val + ' projects (' + percentage + '%)';
                             }
                         }
                     }
@@ -1121,12 +1113,16 @@ jQuery(function($) {
             'rgba(228,26,28,0.6)'
         ];
         var datasets = sdata.map(function(ds, idx){
+            // Divide data by 1 billion for Gbp display
+            var gbpData = ds.data.map(function(val) { return val / 1000000000; });
             return {
                 label: ds.name,
-                data: ds.data,
+                data: gbpData,
                 fill: true,
                 backgroundColor: colorPalette[idx % colorPalette.length],
                 borderColor: colorPalette[idx % colorPalette.length].replace('0.6','1'),
+                borderWidth: 1,
+                pointRadius: 0
             };
         });
 
@@ -1149,9 +1145,12 @@ jQuery(function($) {
                     datasets: datasets
                 },
                 options: {
-                    radius: 0,
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     scales: {
                         x: {
                             stacked: true,
@@ -1161,8 +1160,10 @@ jQuery(function($) {
                         },
                         y: {
                             stacked: true,
-                            ticks: {
-                                beginAtZero: true,
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Giga base pairs'
                             }
                         }
                     },
@@ -1175,6 +1176,7 @@ jQuery(function($) {
                         subtitle: {
                             display: true,
                             text: subtitle_text,
+                            padding: { bottom: 5 }
                         },
                         legend: {
                             display: true,
@@ -1185,7 +1187,10 @@ jQuery(function($) {
                                 padding: 4
                             }
                         },
-                        tooltip: { mode: 'index', intersect: false }
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
                     }
                 }
             });
