@@ -75,17 +75,7 @@ footer img {
 .balance_plot.coming_soon { margin: 22px 0; }
 .success_plot.coming_soon { margin: 35px 0; }
 
-.tat_plot .highcharts-container svg .highcharts-series-group .highcharts-series-0 path {
-    fill: #ccc;
-}
-.tat_plot .highcharts-container svg .highcharts-series-group .highcharts-series-0 circle {
-    fill: #fff;
-    r: 120;
-}
-#finished_proj_tat svg .highcharts-series-group .highcharts-series-0 circle,
-#lp_proj_tats svg .highcharts-series-group .highcharts-series-0 circle {
-    fill: #f2f2f2
-}
+
 
 #clock_time, #clock_date {
     float:right;
