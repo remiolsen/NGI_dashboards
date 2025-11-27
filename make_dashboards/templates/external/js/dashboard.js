@@ -134,9 +134,9 @@ function make_delivery_times_plot(){
     var $canvas = $('<canvas></canvas>');
     $container.append($canvas);
     var ctx = $canvas[0].getContext('2d');
-    // Ensure the canvas has height for visibility
-    $canvas.attr('height', plot_height-180);
-    $container.css('height', plot_height-180 + 'px');
+    // Ensure the canvas has height for visibility subtract space for Finished Lib TaT
+    $canvas.attr('height', plot_height-200);
+    $container.css('height', plot_height-200 + 'px');
 
     // Chart.js doughnut configuration
     new Chart(ctx, {
