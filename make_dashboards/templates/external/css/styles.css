@@ -76,22 +76,6 @@ footer img {
 .success_plot.coming_soon { margin: 35px 0; }
 
 
-
-#clock_time, #clock_date {
-    float:right;
-    clear:right;
-    text-align:right;
-    margin-right: 100px;
-}
-#clock_time {
-    margin-top: 15px;
-    font-size: 36px;
-    line-height: 32px;
-}
-#clock_date {
-    font-size: 22px;
-}
-
 .mid-left p {
     font-size: 16px;
 }
@@ -146,78 +130,4 @@ footer img {
     line-height: 90px;
     -webkit-transform: rotate(-90deg);
     transform: rotate(-90deg);
-}
-
-/* Header Clock */
-.hero-circle {
-    width: 80px;
-    height: 80px;
-    margin: 8px 0 0 auto;
-    position: relative;
-    border: 1px solid #666;
-    border-radius: 50%;
-    box-shadow: 0 1px 4px rgba(34, 34, 34, 0.3), inset 0 1px 4px rgba(34, 34, 34, 0.3);
-}
-.hero-face {
-    width: 100%;
-    height: 100%
-}
-
-.hero-face:after {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 4px;
-    height: 4px;
-    margin: -2px 0 0 -2px;
-    background: #666;
-    border-radius: 4px;
-    content: "";
-    display: block
-}
-
-.hero-hour {
-    width: 0;
-    height: 0;
-    position: absolute;
-    /*top: calc(50% - 2px);
-    left: calc(50% + 1px);*/
-    top: 37px;
-    left: 40px;
-    margin: 1px 0 -1px -25%;
-    padding: 1px 0 1px 25%;
-    background: #666;
-    -webkit-transform-origin: 100% 50%;
-    -ms-transform-origin: 100% 50%;
-    transform-origin: 100% 50%;
-    border-radius: 1px 0 0 1px
-}
-
-.hero-minute {
-    width: 0;
-    height: 0;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    margin: -40% -1px 0;
-    padding: 40% 1px 0;
-    background: #666;
-    -webkit-transform-origin: 50% 100%;
-    -ms-transform-origin: 50% 100%;
-    transform-origin: 50% 100%;
-    border-radius: 3px 3px 0 0
-}
-
-.hero-second {
-    width: 0;
-    height: 0;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    margin: -40% -0.5px 0 0;
-    padding: 40% 0.5px 0;
-    background: #666;
-    -webkit-transform-origin: 50% 100%;
-    -ms-transform-origin: 50% 100%;
-    transform-origin: 50% 100%
 }
