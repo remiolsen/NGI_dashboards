@@ -541,10 +541,15 @@ jQuery(function($) {
             if(series_total > 0){
                 sdata.push({
                     name: skeys[j],
-                    data: swdata
+                    data: swdata,
+                    total: series_total
                 });
             }
         }
+        // Sort by total area (smallest to largest) so smallest appears at bottom
+        sdata.sort(function(a, b) {
+            return a.total - b.total;
+        });
         // Subtitle text
         var bp_per_day = total_count / (weeks.length * 7);
         var minutes_per_genome = 3236336281 / (bp_per_day / (24*60));
@@ -553,15 +558,15 @@ jQuery(function($) {
         // Chart.js replacement
         var labels = weeks;
         var colorPalette = [
-            'rgba(49,90,123,0.6)',
-            'rgba(55,126,184,0.6)',
-            'rgba(77,175,122,0.6)',
-            'rgba(255,127,14,0.6)',
-            'rgba(166,86,40,0.6)',
-            'rgba(247,129,191,0.6)',
-            'rgba(152,78,163,0.6)',
-            'rgba(153,153,153,0.6)',
-            'rgba(228,26,28,0.6)'
+            'rgba(49,90,123,1)',
+            'rgba(77,175,122,1)',
+            'rgba(152,78,163,1)',
+            'rgba(255,127,14,1)',
+            'rgba(55,126,184,1)',
+            'rgba(228,26,28,1)',
+            'rgba(166,86,40,1)',
+            'rgba(247,129,191,1)',
+            'rgba(153,153,153,1)'
         ];
         var datasets = sdata.map(function(ds, idx){
             // Divide data by 1 billion for Gbp display
