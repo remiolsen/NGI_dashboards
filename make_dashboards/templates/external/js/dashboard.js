@@ -7,15 +7,6 @@ $(function () {
 
     try {
 
-        Highcharts.setOptions({
-            colors: ['#377eb8','#4daf4a','#984ea3','#ff7f00','#a65628','#f781bf','#999999','#e41a1c'],
-            chart: {
-                style: {
-                    fontFamily:'"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif'
-                }
-            },
-            plotOptions: { series: { animation: false } }
-        });
 
         // Reload the page every 30 minutes
         var reloadDelay = 1000*60*30;
@@ -57,7 +48,7 @@ $(function () {
         var all_projs = Object.keys(ydata).map(function(a){return ydata[a]}).reduce(function(a,b){return a+b}) +
              Object.keys(ydata_seq).map(function(a){return ydata_seq[a]}).reduce(function(a,b){return a+b});
         var subtitle = all_projs+' since '+start_date+', '+open_projs+' currently open';
-        make_bar_plot('#num_projects_plot', '# Projects ', undefined, subtitle, true, {'Library prep': ydata, 'Sequencing only': ydata_seq, 'Ongoing': open});
+        make_bar_chart_js('#num_projects_plot', '# Projects', subtitle, {'Library prep': ydata, 'Sequencing only': ydata_seq, 'Ongoing': open});
 
         // Samples plot
         var ydata = collect_n_months(data['num_samples'], num_months, start_date);
@@ -65,10 +56,8 @@ $(function () {
         var all_samples = Object.keys(ydata).map(function(a){return ydata[a]}).reduce(function(a,b){return a+b}) +
              Object.keys(ydata_seq).map(function(a){return ydata_seq[a]}).reduce(function(a,b){return a+b});
         var subtitle = all_samples+' since '+start_date;
-        make_bar_plot('#num_samples_plot', '# Samples ', undefined, subtitle, true, {'Library prep': ydata, 'Sequencing only': ydata_seq});
+        make_bar_chart_js('#num_samples_plot', '# Samples', subtitle, {'Library prep': ydata, 'Sequencing only': ydata_seq});
 
-        // Species plot
-        //make_species_plot('#species_plot');
 
         // Delivery times plot
         make_delivery_times_plot();
@@ -114,248 +103,299 @@ function collect_n_months(data, n, start_key) {
     return ndata;
 }
 
-// Make a bar plot
-function make_bar_plot(target, title, axisTitle, subtitle ,enableLegend, ydata){
-    try {
-        if(target === undefined){ throw 'Target missing'; }
-        if(ydata === undefined){ throw 'Data missing'; }
-        if(title === undefined){ title = null; }
-        if(axisTitle === undefined){ axisTitle = null; }
-
-        var iseries = [];
-        var total_count = 0;
-        var set_cats = {};
-
-        // Do it once to get the catagories
-        for (var i=0; i<Object.keys(ydata).length; i++) {
-            var idata = ydata[Object.keys(ydata)[i]];
-            var cats = Object.keys(idata).sort(function(a,b){return idata[a]-idata[b]}).reverse();
-            for(var j=0; j<cats.length; j++){
-              (set_cats[cats[j]] === undefined) ? set_cats[cats[j]]=idata[cats[j]] : set_cats[cats[j]]=set_cats[cats[j]]+idata[cats[j]];
-            }
-        }
-        // Do it twice to get the data or w.e
-        for (var i=0; i<Object.keys(ydata).length; i++) {
-            var idata = ydata[Object.keys(ydata)[i]];
-            var cats = Object.keys(set_cats).sort(function(a,b){return set_cats[a]-set_cats[b]}).reverse();
-            var sorted_idata = [];
-            for(var j=0; j<cats.length; j++){
-                if (idata[cats[j]] === undefined) {idata[cats[j]] = 0;}
-                sorted_idata.push(idata[cats[j]]);
-                total_count += idata[cats[j]];
-            }
-            iseries.push({"name": Object.keys(ydata)[i], "data": sorted_idata});
-        }
-        var nice_cats = Object.keys(set_cats).sort(function(a,b){return set_cats[a]-set_cats[b]}).reverse();
-        subtitle = subtitle;
-        $(target).highcharts({
-            colors: ['#315a7b', '#377eb8', '#4daf4a'],
-            chart: {
-                type: 'bar',
-                height: plot_height,
-                plotBackgroundColor: null,
-            },
-            title: {
-                text: title,
-                style: { 'font-size': '24px' }
-            },
-            subtitle: {
-                text: subtitle,
-            },
-            tooltip: {
-                shared: true,
-                headerFormat: '',
-                pointFormat: '<span style="color:{series.color}; font-weight:bold;">{series.name}</span>: {point.y}<br/>'
-            },
-            credits: { enabled: false },
-            xAxis: {
-                categories: nice_cats
-            },
-            yAxis: {
-                min: 0,
-                title: { text: axisTitle },
-                stackLabels: { enabled: true }
-            },
-            legend: {
-                reversed: true,
-                floating: true,
-                y: -30,
-                x: 150,
-                layout: 'vertical',
-                enabled: enableLegend
-            },
-            plotOptions: {
-                bar: {
-                    borderWidth: 0,
-                    groupPadding: 0.1,
-                },
-                series: {
-                    stacking: 'normal'
-                }
-            },
-            series: iseries
-        });
-    } catch(err) {
-        $(target).addClass('coming_soon').text('coming soon');
-        console.log(err);
-    }
-}
 
 
 function make_delivery_times_plot(){
+    // Gather delivery time data
     var ydata = collect_n_months(data['delivery_times'], num_months, start_date);
-    var ykeys = Object.keys(ydata).sort(function(a,b){ return a.match(/\d+/)-b.match(/\d+/) });
-    var pdata = Array();
-    for(i=0; i<ykeys.length; i++){ pdata.push([ykeys[i], ydata[ykeys[i]]]); }
-    var d = new Date();
+    var labels = Object.keys(ydata).sort(function(a,b){
+        return a.match(/\d+/) - b.match(/\d+/);
+    });
+    var values = labels.map(function(l){ return ydata[l]; });
 
-    $('#delivery_times_plot').highcharts({
-        chart: {
-            plotBackgroundColor: null,
-            plotBorderWidth: 0,
-            plotShadow: false,
-            height: plot_height * 0.65,
+    // Compute median value (in weeks)
+    function computeMedian(arr){
+        var sorted = arr.slice().sort(function(a,b){return a-b;});
+        var half = Math.floor(sorted.length/2);
+        if (sorted.length % 2)
+            return sorted[half];
+        return (sorted[half-1] + sorted[half]) / 2.0;
+    }
+    var median = computeMedian(values);
+
+    // Calculate total for percentages
+    var total = values.reduce(function(a, b) { return a + b; }, 0);
+
+    // Prepare container
+    var $container = $('#delivery_times_plot');
+    $container.empty(); // remove any previous content
+
+    // Create canvas element for Chart.js
+    var $canvas = $('<canvas></canvas>');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+    // Ensure the canvas has height for visibility subtract space for Finished Lib TaT
+    $canvas.attr('height', plot_height-200);
+    $container.css('height', plot_height-200 + 'px');
+
+    // Chart.js doughnut configuration
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: [
+                    '#377eb8','#4daf4a','#984ea3','#ff7f00',
+                    '#a65628','#f781bf','#999999','#e41a1c'
+                ],
+                borderWidth: 1
+            }]
         },
-        title: {
-            text: 'Delivery Times',
-            style: { 'font-size': '24px' }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            circumference: 180,
+            rotation: -90,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Delivery Times',
+                    font: { size: 18 }
+                },
+                legend: {
+                    display: true,
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context){
+                            var label = context.label || '';
+                            var val = context.parsed;
+                            var percentage = ((val / total) * 100).toFixed(1);
+                            return label + ': ' + val + ' projects (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+  
+// Chart.js stacked bar chart for # Projects and # Samples
+function make_bar_chart_js(target, title, subtitle, seriesData){
+    // Determine all categories (union of keys across series)
+    var categoriesSet = {};
+    var categoryTotals = {};
+    Object.keys(seriesData).forEach(function(series){
+        Object.keys(seriesData[series]).forEach(function(cat){
+            categoriesSet[cat] = true;
+            if (!categoryTotals[cat]) {
+                categoryTotals[cat] = 0;
+            }
+            categoryTotals[cat] += seriesData[series][cat];
+        });
+    });
+    var categories = Object.keys(categoriesSet).sort(function(a, b) {
+        return categoryTotals[b] - categoryTotals[a];
+    });
+
+    // Colors for up to three series
+    var palette = ['#315a7b', '#377eb8', '#4daf4a'];
+
+    var datasets = Object.keys(seriesData).map(function(series, idx){
+        var data = categories.map(function(cat){
+            return seriesData[series][cat] !== undefined ? seriesData[series][cat] : 0;
+        });
+        return {
+            label: series,
+            data: data,
+            backgroundColor: palette[idx % palette.length]
+        };
+    });
+
+    var $container = $(target);
+    $container.empty(); // clear previous content
+    var $canvas = $('<canvas></canvas>');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+    // Ensure the canvas has height for vertical bars visibility
+    $canvas.attr('height', plot_height);
+    $container.css('height', plot_height + 'px');
+
+    // Create annotations for category totals
+    var annotations = {};
+    categories.forEach(function(cat, idx){
+        var total = categoryTotals[cat];
+        annotations['label' + idx] = {
+            type: 'label',
+            yValue: cat,
+            xValue: total,
+            xAdjust: 14,
+            backgroundColor: 'rgba(0,0,0,0)',
+            color: '#333',
+            content: total.toString(),
+            font: {
+                size: 11,
+                weight: 'bold'
+            }
+        };
+    });
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: categories,
+            datasets: datasets
         },
-        subtitle: {
-            text: 'Measured from sample QC pass to data delivery dates <br/>for projects started since '+start_date,
-        },
-        credits: { enabled: false },
-        tooltip: {
-            headerFormat: '',
-            pointFormat: '<span style="color:{point.color}; font-weight:bold;">{point.name}eeks</span>: {point.y} projects'
-        },
-        plotOptions: {
-            pie: {
-                // dataLabels: { enabled: false },
-                dataLabels: {
-                    enabled: true,
-                    formatter: function() {
-                        return Math.round(this.percentage*100)/100 + ' %';
-                    },
-                    distance: -40,
-                    style: {
-                        fontWeight: 'bold',
-                        color: 'white',
-                        textShadow: '0px 1px 2px black',
-                        'font-size': '18px'
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: title,
+                    font: { size: 18 }
+                },
+                subtitle: {
+                    display: true,
+                    text: subtitle
+                },
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context){
+                            var series = context.dataset.label || '';
+                            var value = context.parsed.x;
+                            return series + ': ' + value;
+                        }
                     }
                 },
-                showInLegend: true,
-                startAngle: -90,
-                endAngle: 90,
-                size: '210%',
-                center: ['50%', '100%']
+                annotation: {
+                    annotations: annotations
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    grid: {
+                        display: false
+                    }
+                }
             }
-        },
-        legend: {
-            enabled: true,
-            floating: true,
-            y: 20
-        },
-        series: [{
-            type: 'pie',
-            name: 'Delivery Times',
-            innerSize: '50%',
-            data: pdata
-        }]
+        }
     });
 }
 
 
 function make_finished_lib_median_plot(){
+    // Compute distribution of Sequencing Only delivery times over the last 5 months
     var months = Object.keys(deliverytimes_data).sort().reverse().slice(0,5).reverse();
-    var ydata = [];
-    for (i=0; i<months.length; i++) {
+    var distribution = [];
+    for (var idx=0; idx<months.length; idx++) {
         try {
-            tmp = ydata.concat(deliverytimes_data[months[i]]['Sequencing Only']);
-            ydata = tmp;
-        } catch(err) {continue;}
+            var m = deliverytimes_data[months[idx]]['Sequencing Only'];
+            for (var k in m) {
+                distribution.push(m[k]);
+            }
+        } catch (err) { continue; }
+    }
+    distribution.sort(function(a,b){return a-b;});
+    var median = 0;
+    var n = distribution.length;
+    if (n > 0) {
+        var mid = Math.floor(n/2);
+        median = (n % 2 === 1) ? distribution[mid] : (distribution[mid-1] + distribution[mid]) / 2;
     }
 
-    var median;
-    ydata.sort( function(a,b) {return a - b;} );
-    var half = Math.floor(ydata.length/2);
-    if(ydata.length % 2)
-        median = ydata[half];
-    else
-        median = (ydata[half-1] + ydata[half]) / 2.0;
+    // Compute date label for 5 months from now
+    var labelDate = moment().add(5, 'months').format('YYYY-MM');
+    // Chart container setup
+    var container = document.getElementById('finished_lib_median_tat');
+    container.innerHTML = '';
+    container.style.height = '180px';
+    var canvas = document.createElement('canvas');
+    canvas.height = 180;
+    container.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    if (window.finishedLibMedianChart) {
+        window.finishedLibMedianChart.destroy();
+    }
 
+    // Create frequency data for line chart from raw distribution
+    var frequencyData = {};
+    distribution.forEach(function(value) {
+        var key = Math.floor(value);
+        frequencyData[key] = (frequencyData[key] || 0) + 1;
+    });
 
-    $('#finished_lib_median_tat').highcharts({
-        chart: {
-            type: 'bar',
-            height: 100,
-            spacingLeft: 100,
-            spacingRight: 100,
-            spacingBottom: 10,
-            spacingTop: 0,
-            backgroundColor:'rgba(255, 255, 255, 0.1)',
-            plotBackgroundColor:'#ed8c83',
-            plotBorderColor: '#FFFFFF',
-            plotBorderWidth: 14
-        },
-        xAxis: {
-            categories: ['Queue'],
-            title: { text: null },
-            labels: { enabled: false },
-            tickWidth: 0,
-            lineWidth: 0
-        },
-        yAxis: [{
-            opposite: true,
-            min: 0,
-            max: 6,
-            title: {
-                text: 'Median turn around time for <br> sequencing-ready libraries (since '+months[0]+'): <strong>'+median+' days</strong>',
-                y: -20,
-                style: { 'font-size': 12 }
-            },
-            labels: { enabled: false },
-            gridLineWidth: 0
-        },{
-            min: 0,
-            max: 30,
-            title: { text: null },
-            startOnTick: false,
-            labels: {
-                format: '{value} w',
-                y: 15
-            },
-            tickPositions: [ 0, 1, 2, 3, 4, 5 ],
-            gridLineWidth: 0,
-            plotBands: [{
-                color: '#87BA7D',
-                from: 0,
-                to: 3
-            },{
-                color: '#EDD983',
-                from: 3,
-                to: 4
-            },{
-                color: '#ED8C83',
-                from: 4,
-                to: 20
-            }],
-            plotLines: [{
-                name: 'Finished Lib TaT',
-                color : '#666666',
-                dataLabels: { enabled: true },
-                width: 4,
-                zIndex: 1000,
-                value: median/7
+    // Convert frequency data to chart data points
+    var dataPoints = [];
+    Object.keys(frequencyData).map(Number).sort(function(a,b){return a-b;}).forEach(function(key) {
+        dataPoints.push({x: key, y: frequencyData[key]});
+    });
+
+    // Create a vertical line for the median
+    window.finishedLibMedianChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Frequency',
+                data: dataPoints,
+                backgroundColor: 'rgba(232,100,83,0.4)',
+                borderColor: 'rgba(232,100,83,1)',
+                borderWidth: 1,
+                fill: true,
+                pointRadius: 0
             }]
-        }],
-        title: { text: null },
-        legend: { enabled: false },
-        credits: { enabled: false },
-        series: [
-            { data: [0] },
-            { data: [0], yAxis: 1 }
-        ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Finished Lib TaT' },
+                subtitle: {
+                    display: true,
+                    text: 'Median turn around for sequencing ready libraries (since ' + labelDate + '): ' + median.toFixed(1) + ' days'
+                },
+                annotation: {
+                    annotations: {
+                        medianLine: {
+                            type: 'line',
+                            xMin: median,
+                            xMax: median,
+                            borderColor: 'rgba(55,126,184,1)',
+                            borderWidth: 2,
+                            borderDash: [6, 6],
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Days' },
+                    beginAtZero: true,
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    display: true,
+                    title: { display: true, text: 'Frequency' },
+                    beginAtZero: true
+                }
+            }
+        }
     });
 }
 
@@ -363,48 +403,74 @@ function make_finished_lib_median_plot(){
 function make_affiliations_plot(){
     var ydata = collect_n_months(data['project_user_affiliations'], num_months, start_date);
     var ykeys = Object.keys(ydata).sort(function(a,b){return ydata[a]-ydata[b]}).reverse();
-    var pdata = Array();
+    
+    // Prepare data for Chart.js
+    var labels = [];
+    var values = [];
     for(i=0; i<ykeys.length; i++){
-        var thiskey = ykeys[i];
-        pdata.push([thiskey, ydata[ykeys[i]]]);
+        labels.push(ykeys[i]);
+        values.push(ydata[ykeys[i]]);
     }
 
-    $('#affiliations_plot').highcharts({
-        chart: {
-            plotBackgroundColor: null,
-            height: plot_height,
-            type:'pie'
+    // Chart.js implementation
+    var $container = $('#affiliations_plot');
+    $container.empty(); // remove any previous content
+    
+    // Create canvas element for Chart.js
+    var $canvas = $('<canvas></canvas>');
+    // Ensure the canvas has uses height for visibility
+    $canvas.attr('height', plot_height);
+    $container.css('height', plot_height + 'px');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+    
+    // Chart.js pie configuration
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: [
+                    '#377eb8','#4daf4a','#984ea3','#ff7f00',
+                    '#a65628','#f781bf','#999999','#e41a1c'
+                ],
+                borderWidth: 1
+            }]
         },
-        title: {
-            text: 'Project Affiliations',
-            style: { 'font-size': '24px' }
-        },
-        subtitle: {
-            text: 'Projects started since '+start_date,
-        },
-        credits: { enabled: false },
-        tooltip: {
-            headerFormat: '',
-            pointFormat: '<span style="color:{point.color}; font-weight:bold;">{point.name}</span>: {point.y} projects'
-        },
-        plotOptions: {
-            pie: {
-                dataLabels: { enabled: false },
-                showInLegend: true,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Project Affiliations',
+                    font: { size: 18 }
+                },
+                subtitle: {
+                    display: true,
+                    text: 'Projects started since '+start_date
+                },
+                legend: {
+                    display: true,
+                    position: 'right',
+                    labels: {
+                        boxWidth: 10,
+                        font: { size: 10 },
+                        padding: 2
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            var label = context.label || '';
+                            var value = context.parsed;
+                            return label + ': ' + value + ' projects';
+                        }
+                    }
+                }
             }
-        },
-        legend: {
-            enabled: true,
-            layout: 'vertical',
-            align: 'right',
-            verticalAlign: 'top',
-            y: 100,
-            itemStyle: {
-                'font-size': '12px',
-                'font-weight': 'normal'
-            }
-        },
-        series: [{ data: pdata }]
+        }
     });
 }
 
@@ -427,89 +493,127 @@ function make_throughput_plot(){
     var total_count = 0;
     for(j=0; j<skeys.length; j++){
         var swdata = Array();
+        var series_total = 0;
         for(i=0; i<num_weeks; i++){
             thisdata = data['bp_seq_per_week'][weeks[i]][skeys[j]];
             swdata.push(thisdata == undefined ? 0 : thisdata);
             total_count += thisdata == undefined ? 0 : thisdata;
+            series_total += thisdata == undefined ? 0 : thisdata;
         }
-        sdata.push({
-            name: skeys[j],
-            data: swdata
-        });
+        // Only include series with non-zero data
+        if(series_total > 0){
+            sdata.push({
+                name: skeys[j],
+                data: swdata,
+                total: series_total
+            });
+        }
     }
+    // Sort by total area (smallest to largest) so smallest appears at bottom
+    sdata.sort(function(a, b) {
+        return a.total - b.total;
+    });
     // Subtitle text
     var bp_per_day = total_count / (num_weeks * 7);
     var minutes_per_genome = 3236336281 / (bp_per_day / (24*60));
-    var subtitle_text = 'Average for past '+num_weeks+' weeks: '+parseInt(bp_per_day/1000000000)+' Gbp per day <br>(1 Human genome equivalent every '+minutes_per_genome.toFixed(2)+' minutes)';
+    var subtitle_text = 'Average for past '+num_weeks+' weeks: '+parseInt(bp_per_day/1000000000)+' Gbp per day (1 Human genome equivalent every '+minutes_per_genome.toFixed(2)+' minutes)';
 
-    $('#throughput_plot').highcharts({
-        chart: {
-            plotBackgroundColor: null,
-            height: plot_height,
-            type: 'area'
-        },
-        title: {
-            text: 'Sequencing Throughput',
-            style: { 'font-size': '24px' }
-        },
-        subtitle: {
-            text: subtitle_text
-        },
-        xAxis: {
-            labels: {
-                formatter: function() {
-                    return weeks[this.value];
-                },
-                rotation: -30,
-            },
-            tickInterval: 1,
-            title: { enabled: false },
-        },
-        yAxis: {
-            title: { text: 'Base Pairs' },
-            labels: {
-                formatter: function () {
-                    return this.value.toExponential();
-                }
-            }
-        },
-        credits: { enabled: false },
-        tooltip: {
-            shared: true,
-            useHTML: true,
-            formatter: function(){
-                tt = '<strong>Week of '+weeks[this.x]+'</strong><br><table>';
-                for(i=0; i<this.points.length; i++){
-                    tt += '<tr><td style="padding-right: 15px;"><span style="color:'+this.points[i].color+';">'
-                    tt += this.points[i].series.name+'</span>:</td><td class="text-right">'
-                    tt += parseInt(this.points[i].y/1000000000)+' Gbp</td></tr>';
-                }
-                tt += '<tr style="border-top: 1px solid #333;"><td><strong>Total:</strong></td>';
-                tt += '<td>'+parseInt(this.points[0].total/1000000000)+' Gbp</td></tr></table>';
-                return tt;
-            }
-        },
-        plotOptions: {
-            area: {
-                stacking: 'normal',
-                lineColor: '#999999',
-                lineWidth: 1,
-                marker: { enabled: false }
-            }
-        },
-        legend: {
-            enabled: true,
-            floating: true,
-            layout: 'horizontal',
-            align: 'left',
-            verticalAlign: 'top',
-            y: 80,
-            x: 90,
-            itemStyle: { 'font-weight': 'normal' },
-            backgroundColor: ((Highcharts.theme && Highcharts.theme.legendBackgroundColor) || '#FFFFFF'),
-        },
-        series: sdata
+    // Chart.js replacement
+    var labels = weeks;
+    var colorPalette = [
+        'rgba(49,90,123,1)',
+        'rgba(77,175,122,1)',
+        'rgba(152,78,163,1)',
+        'rgba(255,127,14,1)',
+        'rgba(55,126,184,1)',
+        'rgba(228,26,28,1)',
+        'rgba(166,86,40,1)',
+        'rgba(247,129,191,1)',
+        'rgba(153,153,153,1)'
+    ];
+    var datasets = sdata.map(function(ds, idx){
+        // Divide data by 1 billion for Gbp display
+        var gbpData = ds.data.map(function(val) { return val / 1000000000; });
+        return {
+            label: ds.name,
+            data: gbpData,
+            fill: true,
+            backgroundColor: colorPalette[idx % colorPalette.length],
+            borderColor: colorPalette[idx % colorPalette.length].replace('0.6','1'),
+            borderWidth: 1,
+            pointRadius: 0
+        };
     });
+
+    var $container = $('#throughput_plot');
+    $container.empty();
+    var $canvas = $('<canvas></canvas>');
+    $container.append($canvas);
+    var ctx = $canvas[0].getContext('2d');
+    // Ensure the canvas has height for vertical bars visibility
+    $canvas.attr('height', plot_height);
+    $container.css('height', plot_height + 'px');
+
+    if(window.throughputChart) {
+        window.throughputChart.destroy();
+    }
+    window.throughputChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Giga base pairs'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Sequencing Throughput',
+                        font: { size: 18 }
+                    },
+                    subtitle: {
+                        display: true,
+                        text: subtitle_text,
+                        padding: { bottom: 5 }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            font: { size: 10  },
+                            boxWidth: 10,
+                            padding: 4
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            }
+        });
 }
+
 
 
